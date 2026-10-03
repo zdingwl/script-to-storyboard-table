@@ -1,8 +1,10 @@
 # script-to-storyboard-table
 
+> Skill 定位：**AI Director & Cinematic Previsualization System**
+
 将剧本、对白稿、小说改编稿或已有导演计划转换为 **可拍、可剪、可校验、可供 AI 视频流水线继续读取的结构化分镜表**。
 
-当前版本：**v3.2.0（2026-10-03）**。
+当前版本：**v3.3.0（2026-10-03）**。
 
 核心入口是根目录 `SKILL.md`。详细方法按需拆到 `references/`，确定性检查放在 `scripts/`，符合 Skill 的渐进式加载思路。
 
@@ -18,18 +20,35 @@ v2 已有 Beat ownership、Atomic Shot、Generation Segment、start/end state �
 v3 将正式流程改为：
 
 ```text
-剧情事实
+Script Lock / Story Contract
 → Sequence Type Router
-→ 导演预规划
-→ Type-specific Sequence Plan
-→ Combat Plan（战斗场）
-→ Narrative Beat
+→ Director Plan
+→ Type-specific Sequence Plan / Combat Plan
+→ Visual Bible Contract
+→ Asset State Matrix
+→ Geography / Blocking
+→ Narrative Beat / Coverage
 → Atomic Shot
 → Continuity Handoff
-→ Dialogue / Runtime Timing
-→ Generation Segment（需要时）
-→ Audit + Validator
+→ Storyboard
+→ Animatic / Previs Gate
+→ AI Video Shot Production Packet
 ```
+
+## v3.3：从“分镜 Skill”升级为 Previs System
+
+v3.3 吸收电影/动画前期中最值得 AI 短剧使用的几层：
+
+- **Script Lock / Story Contract**：锁 objective、obstacle、escalation、information release、情绪起止与 irreversible change；
+- **Visual Bible Contract**：项目级摄影、镜头意图、灯光、色彩、构图、材质规则只定义一次；
+- **Asset State Matrix**：不只管理 C01，而是管理 C01-ST01 / ST02 / ST03 等剧情状态；
+- **Animatic / Previs Gate**：分镜完成后先放到时间线上验证节奏、动作、对白和缺镜；
+- **Shot Production Packet**：正式视频模型只执行已经设计好的镜头；
+- **Pickup Feedback Loop**：粗剪发现问题时优先补镜/替换，而不是整场推倒。
+
+Storyboard 与 Animatic 是两个不同质量门；Animatic 会把静态分镜放入时间、声音和运动关系里验证。citeturn192654search0turn192654search8
+
+Visual Bible / Lookbook 则作为跨部门视觉参考，让 cinematography、production design、lighting、color 等方向不必在每镜重新决定。citeturn192654search9
 
 ## v3 关键能力
 
@@ -278,6 +297,13 @@ script-to-storyboard-table/
 ├── agents/
 │   └── openai.yaml
 ├── references/
+│   ├── previs-pipeline.md
+│   ├── script-lock-contract.md
+│   ├── visual-bible-contract.md
+│   ├── asset-state-matrix.md
+│   ├── animatic-previs.md
+│   ├── shot-production-packet.md
+│   ├── post-generation-loop.md
 │   ├── sequence-router.md
 │   ├── director-plan.md
 │   ├── dialogue-emotion-planning.md
@@ -427,6 +453,7 @@ python -m unittest discover -s tests -v
 
 ## 版本
 
+- `3.3.0` — Script Lock、Visual Bible Contract、Asset State Matrix、Animatic/Previs Gate、Shot Production Packet、Pickup Loop。
 - `3.2.0` — Sequence Type Router、主要场型专用规划、Sequence Plan/Beat/Context 与通用状态连续性校验。
 - `3.1.0` — Combat Plan、Combat Beat、Arena/Range/Advantage 连续性、战斗示例与 validator。
 - `3.0.0` — Director Plan、Handoff、跨语言 Timing、单一 Shot 事实源、Hook Audit、v3 validator + tests。
