@@ -19,10 +19,12 @@ Story / Novel
 → Asset State Matrix
 → Geography / Blocking
 → Coverage / Cinematography
-→ Storyboard
+→ Draft Storyboard
 → Continuity Audit
+→ Continuity Repair
+→ Approved Storyboard
 → Animatic / Previs
-→ Previs Gate
+→ Previs Validation Gate
 → AI Video Shot Production Packet
 → downstream generation / edit / sound / VFX
 ```
@@ -47,15 +49,28 @@ Story / Novel
 
 AI 视频模型不应该替导演解决这些问题。
 
-## 3. Previs Gate
+## 3. Continuity Gate + Previs Gate
 
-Storyboard 完成不等于可以正式生成。
+Draft Storyboard 完成不等于可以进入 Animatic，更不等于可以正式生成。
+
+先执行 `references/continuity-audit.md`：
+
+```text
+Draft Storyboard
+→ Continuity Audit
+→ Continuity Repair
+→ Approved Storyboard
+```
+
+Approved Storyboard 再进入 Animatic / Previs，并按 `references/previs-validation.md` 执行最终 Previs Gate。
 
 进入正式 AI Video Production 前至少检查：
 
 - 剧情 Beat 是否完整；
 - Scene / Sequence Plan 是否兑现；
 - start/end/handoff 是否连续；
+- v4 state_inheritance 是否逐路径成立；
+- 连续动作 action_id / phase 是否成立；
 - asset state 是否连续；
 - blocking/geography 是否可读；
 - dialogue timing 是否成立；
@@ -124,7 +139,10 @@ Derived 文件不得反向创造新的剧情事实。
 通过条件：
 
 - Shot atomic；
+- Draft 已完成 Continuity Audit / Repair；
 - end → handoff → start 成立；
+- v4 连续切镜 state_inheritance 全部通过；
+- 同一 action_id 的 phase 不倒退；
 - sequence state 连续；
 - screen direction / axis 清楚；
 - asset state refs 连续；
