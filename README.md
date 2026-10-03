@@ -4,11 +4,11 @@
 
 将剧本、对白稿、小说改编稿或已有导演计划转换为 **可拍、可剪、可校验、可供 AI 视频流水线继续读取的结构化分镜表**。
 
-当前版本：**v3.3.0（2026-10-03）**。
+当前版本：**v4.0.0（2026-10-04）**。
 
 核心入口是根目录 `SKILL.md`。详细方法按需拆到 `references/`，确定性检查放在 `scripts/`，符合 Skill 的渐进式加载思路。
 
-## v3 为什么重做
+## 为什么继续升级到 v4
 
 v2 已有 Beat ownership、Atomic Shot、Generation Segment、start/end state 与 H3 handoff，但实际生产还存在四类容易导致“单镜没问题、视频接不上”的结构性风险：
 
@@ -17,7 +17,7 @@ v2 已有 Beat ownership、Atomic Shot、Generation Segment、start/end state �
 3. **Shot 与 Segment 可能形成两份事实**：同一镜头被嵌套复制后容易发生时长、台词和状态漂移。
 4. **翻译后沿用原语言时长**：不同语言/配音版本的对白长度变化后，原镜头时长不再可靠。
 
-v3 将正式流程改为：
+v4 将正式流程收敛为：
 
 ```text
 Script Lock / Story Contract
@@ -30,10 +30,31 @@ Script Lock / Story Contract
 → Narrative Beat / Coverage
 → Atomic Shot
 → Continuity Handoff
-→ Storyboard
-→ Animatic / Previs Gate
+→ Draft Storyboard
+→ Continuity Audit
+→ Continuity Repair
+→ Approved Storyboard
+→ Animatic / Previs
+→ Previs Validation Gate
 → AI Video Shot Production Packet
 ```
+
+核心变化不是“多拆镜”，而是把相邻镜头之间的状态继承变成机器可验证合同。
+
+## v4.0：把“能看懂”升级成“能连续执行”
+
+v4 新增三层硬约束：
+
+- **State Inheritance**：连续 Handoff 明确列出必须继承的 `start/end state` 路径，validator 逐路径比较上一镜尾状态与下一镜首状态；
+- **Action State**：跨镜连续物理动作用稳定 `action_id + phase_start/phase_end` 跟踪，防止动作重启、倒退和无解释跳相位；
+- **Continuity/Previs 双 Gate**：第一版只能是 Draft Storyboard，必须经过 Continuity Audit/Repair 才能进 Animatic，再通过 Previs Gate 才进入正式 AI 视频生产。
+
+完整规则：
+
+- `references/continuity-audit.md`
+- `references/ai-video-shot-transition.md`
+- `references/previs-validation.md`
+- `references/migration-v3.3-v4.0.md`
 
 ## v3.3：从“分镜 Skill”升级为 Previs System
 
@@ -50,7 +71,7 @@ Storyboard 与 Animatic 是两个不同质量门；Animatic 会把静态分镜�
 
 Visual Bible / Lookbook 则作为跨部门视觉参考，让 cinematography、production design、lighting、color 等方向不必在每镜重新决定。研究来源见 `references/sources.md`。
 
-## v3 关键能力
+## v4 关键能力
 
 ### 1. Director Plan 先于拆镜
 
@@ -183,7 +204,19 @@ director_obligation
 - `time_jump`
 - `scene_cut`
 
-`start_state / end_state` 回答“状态是否接得上”，`handoff_from_previous` 回答“为什么这里能切”。
+`start_state / end_state` 回答“状态是什么”，`handoff_from_previous` 回答“为什么这里能切”，v4 的 `state_inheritance` 则回答“哪些状态必须从上一镜尾帧原样进入下一镜首帧”。
+
+例如：
+
+```json
+"state_inheritance": [
+  "characters.C01.zone",
+  "props.P01.holder",
+  "props.P01.hand"
+]
+```
+
+validator 会直接比较这些路径，不再只靠人工阅读两段自由文本。
 
 ### 5. Shot 单一事实源
 
@@ -301,7 +334,10 @@ script-to-storyboard-table/
 │   ├── script-lock-contract.md
 │   ├── visual-bible-contract.md
 │   ├── asset-state-matrix.md
+│   ├── continuity-audit.md
+│   ├── ai-video-shot-transition.md
 │   ├── animatic-previs.md
+│   ├── previs-validation.md
 │   ├── shot-production-packet.md
 │   ├── post-generation-loop.md
 │   ├── sequence-router.md
@@ -316,6 +352,7 @@ script-to-storyboard-table/
 │   ├── schema.md
 │   ├── h3-handoff.md
 │   ├── migration-v2-v3.md
+│   ├── migration-v3.3-v4.0.md
 │   └── sources.md
 ├── assets/
 │   └── storyboard-template.md
@@ -392,8 +429,11 @@ python scripts/validate_storyboard.py examples/storyboard.example.json --json
 - Shot duration 与 finished-cut timecode；
 - Director Plan 缺失；
 - `purpose` / `cut_reason` 缺失；
-- start/end state；
+- v4 结构化 start/end state；
 - handoff 类型、前镜 ID、理由；
+- 连续切镜 `state_inheritance` 非空与逐路径一致性；
+- action_state phase 合法性、倒退检测；
+- match-on-action 同一 action_id；
 - v3 Segment 禁止重复嵌入完整 Shot；
 - `shot_ids` 顺序和重复归属；
 - Segment 时长与 Shot 求和；
@@ -414,11 +454,15 @@ python -m unittest discover -s tests -v
 
 当前基线覆盖：
 
-- 合法 v3 示例零 warning；
+- 合法 v4 示例零 warning；
 - 翻译后禁止 `inherited_source` timing；
 - v3 禁止 Segment 内复制 Shot；
 - H3 Segment 时长越界；
 - handoff 必须指向真实前镜；
+- v4 连续 handoff 必须有 state_inheritance；
+- world-state inheritance 断裂会报错；
+- match-on-action 必须继续同一 action_id；
+- 同一 action_id 的 phase 不允许倒退；
 - v3.2 Scene 必须有合法 sequence_type；
 - 非战斗场必须有对应 sequence_plan；
 - Sequence Beat 必须被 Shot 认领；
@@ -428,7 +472,7 @@ python -m unittest discover -s tests -v
 
 ## 数据迁移
 
-已有 v2 数据不必重做剧情分析。按 `references/migration-v2-v3.md` 迁移基础结构；已有 v3.1 项目再按 `references/migration-v3.1-v3.2.md` 增加 Sequence Router / Plan / Context。
+已有 v2/v3 数据不必重做剧情分析。先按原迁移文档保留现有 Director / Sequence / Combat 数据，再按 `references/migration-v3.3-v4.0.md` 把关键 start/end state 结构化，并补 state_inheritance / action_state。
 
 1. 收敛 Shot 到 `scene.shots`；
 2. Segment 改为 `shot_ids`；
@@ -453,6 +497,7 @@ python -m unittest discover -s tests -v
 
 ## 版本
 
+- `4.0.0` — Draft→Continuity Audit/Repair→Approved→Previs 双 Gate；结构化 state inheritance；action_state；AI Video Shot Transition Contract；v4 validator + regression tests。
 - `3.3.0` — Script Lock、Visual Bible Contract、Asset State Matrix、Animatic/Previs Gate、Shot Production Packet、Pickup Loop。
 - `3.2.0` — Sequence Type Router、主要场型专用规划、Sequence Plan/Beat/Context 与通用状态连续性校验。
 - `3.1.0` — Combat Plan、Combat Beat、Arena/Range/Advantage 连续性、战斗示例与 validator。
