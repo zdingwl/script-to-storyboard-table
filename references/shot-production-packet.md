@@ -28,6 +28,7 @@
   "prop_states": [],
   "start_state": {},
   "end_state": {},
+  "action_state": null,
   "action": "",
   "blocking": "",
   "character_movement": "",
@@ -45,7 +46,10 @@
   "duration_seconds": 0,
   "dialogue": [],
   "sound": [],
-  "continuity_from_previous": {},
+  "continuity_from_previous": {
+    "handoff_type": "",
+    "state_inheritance": []
+  },
   "continuity_into_next": {},
   "visual_bible_ref": null,
   "do_not_change": [],
@@ -99,7 +103,21 @@
 - do not reveal threat face；
 - no new readable text。
 
-## 7. Packet 与模型 Prompt
+## 7. v4 Continuity Fields
+
+Shot Packet 进入下游模型前必须保留 canonical continuity contract：
+
+- `start_state` / `end_state`；
+- `handoff_type`；
+- `state_inheritance`；
+- 连续物理动作时的 `action_state`；
+- 由上述状态派生的 `do_not_change`。
+
+不要在 Packet 中重新发明另一套人物位置、道具持有、伤势或环境状态。
+
+如果 Previs Gate 尚未通过，不应把 Shot Packet 标记为 production-ready。
+
+## 8. Packet 与模型 Prompt
 
 Packet 是模型无关的导演数据。
 
