@@ -1,9 +1,9 @@
 {
-  "schema_version": "3.0",
+  "schema_version": "3.2",
   "project": {
     "title": "出口争夺",
     "aspect_ratio": "9:16",
-    "target_runtime_seconds": 6.0,
+    "target_runtime_seconds": 6,
     "runtime_lock": true,
     "mode": "faithful",
     "source_language": "zh-CN",
@@ -17,11 +17,32 @@
   },
   "assets": {
     "characters": [
-      {"id": "C01", "name": "角色A", "reference": null, "locked_traits": [], "status": "pending"},
-      {"id": "C02", "name": "角色B", "reference": null, "locked_traits": [], "status": "pending"}
+      {
+        "id": "C01",
+        "name": "角色A",
+        "reference": null,
+        "locked_traits": [],
+        "status": "pending"
+      },
+      {
+        "id": "C02",
+        "name": "角色B",
+        "reference": null,
+        "locked_traits": [],
+        "status": "pending"
+      }
     ],
     "scenes": [
-      {"id": "S01", "name": "储藏室", "reference": null, "locked_traits": ["出口在画面右侧", "长桌位于中央"], "status": "pending"}
+      {
+        "id": "S01",
+        "name": "储藏室",
+        "reference": null,
+        "locked_traits": [
+          "出口在画面右侧",
+          "长桌位于中央"
+        ],
+        "status": "pending"
+      }
     ],
     "props": []
   },
@@ -29,14 +50,17 @@
     {
       "id": "E01",
       "title": "第一集",
-      "target_runtime_seconds": 6.0,
+      "target_runtime_seconds": 6,
       "runtime_lock": true,
       "scenes": [
         {
           "id": "E01-S01",
           "slugline": "INT. 储藏室 - NIGHT",
           "location_asset": "S01",
-          "characters": ["C01", "C02"],
+          "characters": [
+            "C01",
+            "C02"
+          ],
           "props": [],
           "entry_state": {
             "C01": "Z1，面向画面右侧出口",
@@ -84,9 +108,18 @@
             ],
             "arena": {
               "zones": [
-                {"id": "Z1", "name": "房间左侧"},
-                {"id": "Z2", "name": "出口前"},
-                {"id": "Z3", "name": "长桌左侧"}
+                {
+                  "id": "Z1",
+                  "name": "房间左侧"
+                },
+                {
+                  "id": "Z2",
+                  "name": "出口前"
+                },
+                {
+                  "id": "Z3",
+                  "name": "长桌左侧"
+                }
               ],
               "axis": "C01-C02 主交锋线",
               "screen_direction": "C01 left-to-right"
@@ -103,7 +136,9 @@
                 "range_before": "mid",
                 "range_after": "close",
                 "visible_result": "C01 无法继续向出口推进，被迫移动到长桌一侧。",
-                "source_beats": ["E01-S01-B01"]
+                "source_beats": [
+                  "E01-S01-B01"
+                ]
               },
               {
                 "id": "E01-S01-CB02",
@@ -116,12 +151,24 @@
                 "range_before": "close",
                 "range_after": "mid",
                 "visible_result": "双方重新拉开距离，C01 停在 Z3。",
-                "source_beats": ["E01-S01-B02"]
+                "source_beats": [
+                  "E01-S01-B02"
+                ]
               }
             ],
-            "rhythm_plan": ["setup", "pressure", "brief_hold", "aftermath"],
+            "rhythm_plan": [
+              "setup",
+              "pressure",
+              "brief_hold",
+              "aftermath"
+            ],
             "camera_strategy": "第一镜保持 wide/full 建立完整运动路线；第二镜收至 medium 读取结果与重新对峙。",
-            "continuity_priorities": ["zone", "screen_direction", "range", "advantage"],
+            "continuity_priorities": [
+              "zone",
+              "screen_direction",
+              "range",
+              "advantage"
+            ],
             "safety_note": "screen choreography only"
           },
           "beats": [
@@ -130,7 +177,10 @@
               "type": "action",
               "source_text": "A冲向出口，B挡住去路，A被迫退到长桌一侧。",
               "event": "C01 的出口路线被 C02 阻断。",
-              "characters": ["C01", "C02"],
+              "characters": [
+                "C01",
+                "C02"
+              ],
               "props": [],
               "dialogue": null,
               "must_preserve": true
@@ -140,7 +190,10 @@
               "type": "power_shift",
               "source_text": "两人重新拉开距离，B仍挡在出口前。",
               "event": "C02 保持空间优势，C01 无法直达出口。",
-              "characters": ["C01", "C02"],
+              "characters": [
+                "C01",
+                "C02"
+              ],
               "props": [],
               "dialogue": null,
               "must_preserve": true
@@ -151,29 +204,53 @@
               "id": "E01-S01-001",
               "scene_id": "E01-S01",
               "order": 1,
-              "source_beats": ["E01-S01-B01"],
+              "source_beats": [
+                "E01-S01-B01"
+              ],
               "purpose": "完整交代 C01 接近出口、路线被截断以及位置转移。",
               "director_obligation": "看清 C01 从 Z1 被迫转移到 Z3",
               "cut_reason": "Combat Beat 的位置变化完成后切到结果重建。",
-              "timecode_in": 0.0,
-              "timecode_out": 3.0,
-              "duration_seconds": 3.0,
+              "timecode_in": 0,
+              "timecode_out": 3,
+              "duration_seconds": 3,
               "shot_size": "full",
               "angle": "eye-level",
               "camera_movement": "static",
               "composition": "C01 从画面左侧向右移动，C02 位于出口前，长桌保持中央空间锚点。",
-              "characters": ["C01", "C02"],
+              "characters": [
+                "C01",
+                "C02"
+              ],
               "blocking": "C01 从 Z1 接近 Z2；C02 截断路线；C01 改向并停到 Z3。",
               "action": "双方发生短促交锋，重点是路线被阻断与位置变化，而不是逐个动作细节。",
               "performance": "C01 从主动推进转为警觉防守；C02 保持压迫。",
               "dialogue": [],
               "voiceover": [],
-              "sound": ["脚步", "衣料移动", "环境碰撞声"],
-              "assets": {"scene": "S01", "characters": ["C01", "C02"], "props": []},
-              "start_state": {"C01": "Z1，面向右", "C02": "Z2，面向左"},
-              "end_state": {"C01": "Z3，面向 C02", "C02": "Z2，仍位于出口前"},
+              "sound": [
+                "脚步",
+                "衣料移动",
+                "环境碰撞声"
+              ],
+              "assets": {
+                "scene": "S01",
+                "characters": [
+                  "C01",
+                  "C02"
+                ],
+                "props": []
+              },
+              "start_state": {
+                "C01": "Z1，面向右",
+                "C02": "Z2，面向左"
+              },
+              "end_state": {
+                "C01": "Z3，面向 C02",
+                "C02": "Z2，仍位于出口前"
+              },
               "combat_context": {
-                "combat_beat_ids": ["E01-S01-CB01"],
+                "combat_beat_ids": [
+                  "E01-S01-CB01"
+                ],
                 "action_phase": "recovery_or_reposition",
                 "zone_start": "Z1",
                 "zone_end": "Z3",
@@ -181,40 +258,72 @@
                 "range_end": "close",
                 "advantage_start": "C01",
                 "advantage_end": "C02",
-                "primary_exchange": ["C01", "C02"]
+                "primary_exchange": [
+                  "C01",
+                  "C02"
+                ]
               },
               "handoff_from_previous": null,
               "continuity_notes": "保持 C01 left-to-right 的总体推进方向直到被迫转向 Z3。",
-              "risk": {"level": "medium", "reasons": ["two-character physical interaction"], "fallback": "拆成空间建立 + 路线阻断 + 结果重建"},
+              "risk": {
+                "level": "medium",
+                "reasons": [
+                  "two-character physical interaction"
+                ],
+                "fallback": "拆成空间建立 + 路线阻断 + 结果重建"
+              },
               "status": "planned"
             },
             {
               "id": "E01-S01-002",
               "scene_id": "E01-S01",
               "order": 2,
-              "source_beats": ["E01-S01-B02"],
+              "source_beats": [
+                "E01-S01-B02"
+              ],
               "purpose": "确认上一轮交锋结果，并让观众重新读清双方位置和优势。",
               "director_obligation": "结束时重新建立双方位置",
               "cut_reason": "从连续动作转入短暂停顿，需要读取结果与下一轮关系。",
-              "timecode_in": 3.0,
-              "timecode_out": 6.0,
-              "duration_seconds": 3.0,
+              "timecode_in": 3,
+              "timecode_out": 6,
+              "duration_seconds": 3,
               "shot_size": "medium",
               "angle": "eye-level",
               "camera_movement": "static",
               "composition": "C01 在 Z3，C02 保持 Z2；双方重新拉开到中距离。",
-              "characters": ["C01", "C02"],
+              "characters": [
+                "C01",
+                "C02"
+              ],
               "blocking": "C01 在 Z3 重新站稳；C02 不离开出口前的 Z2。",
               "action": "双方短暂停顿并重新建立距离。",
               "performance": "C01 重新评估局面；C02 仍保持主动。",
               "dialogue": [],
               "voiceover": [],
-              "sound": ["急促呼吸", "室内环境声"],
-              "assets": {"scene": "S01", "characters": ["C01", "C02"], "props": []},
-              "start_state": {"C01": "Z3，面向 C02", "C02": "Z2，面向 C01"},
-              "end_state": {"C01": "Z3，与 C02 拉开距离", "C02": "Z2，仍控制出口"},
+              "sound": [
+                "急促呼吸",
+                "室内环境声"
+              ],
+              "assets": {
+                "scene": "S01",
+                "characters": [
+                  "C01",
+                  "C02"
+                ],
+                "props": []
+              },
+              "start_state": {
+                "C01": "Z3，面向 C02",
+                "C02": "Z2，面向 C01"
+              },
+              "end_state": {
+                "C01": "Z3，与 C02 拉开距离",
+                "C02": "Z2，仍控制出口"
+              },
               "combat_context": {
-                "combat_beat_ids": ["E01-S01-CB02"],
+                "combat_beat_ids": [
+                  "E01-S01-CB02"
+                ],
                 "action_phase": "aftermath",
                 "zone_start": "Z3",
                 "zone_end": "Z3",
@@ -222,7 +331,10 @@
                 "range_end": "mid",
                 "advantage_start": "C02",
                 "advantage_end": "C02",
-                "primary_exchange": ["C01", "C02"]
+                "primary_exchange": [
+                  "C01",
+                  "C02"
+                ]
               },
               "handoff_from_previous": {
                 "from_shot_id": "E01-S01-001",
@@ -230,7 +342,11 @@
                 "reason": "上一镜完成位置变化后，切到双方重新建立距离和优势结果。"
               },
               "continuity_notes": "C01 保持 Z3；C02 保持 Z2；优势仍属于 C02。",
-              "risk": {"level": "low", "reasons": [], "fallback": null},
+              "risk": {
+                "level": "low",
+                "reasons": [],
+                "fallback": null
+              },
               "status": "planned"
             }
           ],
@@ -240,8 +356,11 @@
               "scene_id": "E01-S01",
               "target_model": "MiniMax H3",
               "generation_mode": "Ref2VA",
-              "duration_seconds": 6.0,
-              "shot_ids": ["E01-S01-001", "E01-S01-002"],
+              "duration_seconds": 6,
+              "shot_ids": [
+                "E01-S01-001",
+                "E01-S01-002"
+              ],
               "reference_assets": []
             }
           ]
