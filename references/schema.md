@@ -10,7 +10,8 @@ v3 的最重要变化：
 4. Segment 本地 cut 时间由 `shot_ids + duration_seconds` 派生；
 5. Dialogue 显式记录语言与 timing 来源；
 6. 非第一镜显式记录 `handoff_from_previous`；
-7. Scene 显式记录 `director_plan`。
+7. Scene 显式记录 `director_plan`；
+8. 战斗 Scene 可显式记录 `combat_plan`，Shot 可引用 Combat Beat。
 
 ## 1. ID
 
@@ -163,9 +164,92 @@ Hook 字段可选。
     "保留 C01 发现后的反应"
   ],
   "pacing": "neutral",
-  "hook_role": "setup"
+  "hook_role": "setup",
+  "sequence_type": "dialogue"
 }
 ```
+
+### 5.2 combat_plan（仅战斗场）
+
+当：
+
+```json
+"director_plan": {
+  "sequence_type": "combat"
+}
+```
+
+时，建议同时保存：
+
+```json
+"combat_plan": {
+  "combat_goal": "C01 必须突破 C02 才能到达出口",
+  "sequence_arc": "pressure -> reversal -> escalation -> finish",
+  "participants": [
+    {
+      "character_id": "C01",
+      "objective": "到达出口",
+      "start_zone": "Z1",
+      "start_facing": "screen-right",
+      "condition": "uninjured",
+      "key_prop": null
+    }
+  ],
+  "arena": {
+    "zones": [
+      {"id": "Z1", "name": "门口"},
+      {"id": "Z2", "name": "长桌左侧"},
+      {"id": "Z3", "name": "长桌右侧"}
+    ],
+    "axis": "C01-C02 主交锋线",
+    "screen_direction": "C01 left-to-right"
+  },
+  "combat_beats": [
+    {
+      "id": "E01-S04-CB01",
+      "type": "pressure",
+      "purpose": "C01 被迫离开出口方向",
+      "advantage_before": "C01",
+      "advantage_after": "C02",
+      "zone_before": "Z1",
+      "zone_after": "Z2",
+      "range_before": "mid",
+      "range_after": "close",
+      "visible_result": "C01 被迫退到长桌左侧",
+      "source_beats": ["E01-S04-B03"]
+    }
+  ],
+  "rhythm_plan": ["setup", "exchange", "reversal", "breather", "finish", "aftermath"],
+  "camera_strategy": "先 wide 建立空间，关键 reversal 再收近",
+  "continuity_priorities": ["zone", "screen_direction", "range", "advantage", "prop_state"],
+  "safety_note": "screen choreography only"
+}
+```
+
+`combat_plan` 是 `director_plan` 的战斗子计划，不替代普通 Narrative Beat。
+
+### Combat Beat type
+
+推荐：
+
+- `engage`
+- `pressure`
+- `reversal`
+- `disarm_or_prop_change`
+- `environment_shift`
+- `separation`
+- `reengage`
+- `escalation`
+- `save_or_interrupt`
+- `finish`
+- `aftermath`
+
+`range_before/range_after` 仅用于银幕空间连续性：
+
+- `far`
+- `mid`
+- `close`
+- `grapple`
 
 ## 6. Beat
 
@@ -253,6 +337,37 @@ timecode_out - timecode_in = duration_seconds
 ```
 
 `timecode_in/out` 表示集内/成片累计时间，不是 Segment 本地时间。
+
+### 7.2 Combat Context（战斗镜头可选/推荐）
+
+战斗 Shot 可增加：
+
+```json
+"combat_context": {
+  "combat_beat_ids": ["E01-S04-CB01"],
+  "action_phase": "reaction",
+  "zone_start": "Z1",
+  "zone_end": "Z2",
+  "range_start": "mid",
+  "range_end": "close",
+  "advantage_start": "C01",
+  "advantage_end": "C02",
+  "primary_exchange": ["C01", "C02"]
+}
+```
+
+`action_phase` 推荐：
+
+- `read_or_intent`
+- `approach`
+- `attack_attempt`
+- `evade_or_block`
+- `impact_or_near_impact`
+- `reaction`
+- `recovery_or_reposition`
+- `aftermath`
+
+不要把现实伤害技巧写入数据；这里追踪的是银幕动作状态。
 
 ## 8. Handoff
 
