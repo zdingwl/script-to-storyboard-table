@@ -1,4 +1,4 @@
-# 《项目名》分镜表 v3.2
+# 《项目名》分镜表 v4.0
 
 > 人工评审主视图。进入关键帧、图片 Prompt、视频 Prompt 或自动化流水线时，同步维护 `storyboard.json`。
 
@@ -88,7 +88,7 @@
 
 ## 七、Generation Segment 规划（AI 视频流程）
 
-> v3：Segment 只引用 `shot_ids`，不复制完整 Shot。Segment 本地 cut 时间由每镜时长自动派生。
+> v4：Segment 仍只引用 `shot_ids`。进入正式生成前，Shot 必须先通过 Continuity Audit / Repair 与 Previs Gate；Segment 本地 cut 时间由每镜时长自动派生。
 
 | Segment | Scene | 时长 | 目标模型 | 模式建议 | Shot IDs | 参考资产 | 风险 |
 |---|---|---:|---|---|---|---|---|
@@ -96,10 +96,10 @@
 
 ## 八、完整分镜表
 
-| 镜号 | 生成段 | 场次 | 时间码 | 时长 | 原剧本节拍 | Sequence / Combat Context | 镜头职责 | 切点理由 | 景别/角度 | 运镜 | 画面与构图 | 人物/调度 | 动作/表演 | 台词/旁白 + timing | 声音 | 资产 | 首帧状态 | 尾帧状态 | 衔接合同 | 连续性/风险 |
-|---|---|---|---|---:|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| E01-S01-001 | E01-S01-G01 | E01-S01 | 00:00–00:03 | 3s | E01-S01-B01 |  |  | 中近景 / 平视 | 固定 |  |  |  |  |  |  |  |  | first shot |  |
-| E01-S01-002 | E01-S01-G01 | E01-S01 | 00:03–00:06 | 3s | E01-S01-B02 |  |  | 近景 / 平视 | 固定 |  |  |  |  |  |  |  |  | reaction from 001 |  |
+| 镜号 | 生成段 | 场次 | 时间码 | 时长 | 原剧本节拍 | Sequence / Combat Context | 镜头职责 | 切点理由 | 景别/角度 | 运镜 | 画面与构图 | 人物/调度 | 动作/表演 | Action State | 台词/旁白 + timing | 声音 | 资产 | 首帧状态 | 尾帧状态 | 衔接合同 / State Inheritance | 连续性/风险 |
+|---|---|---|---|---:|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| E01-S01-001 | E01-S01-G01 | E01-S01 | 00:00–00:03 | 3s | E01-S01-B01 |  |  |  | 中近景 / 平视 | 固定 |  |  |  | ACT01: execution→result |  |  |  |  |  | first shot |  |
+| E01-S01-002 | E01-S01-G01 | E01-S01 | 00:03–00:06 | 3s | E01-S01-B02 |  |  |  | 近景 / 平视 | 固定 |  |  |  |  |  |  |  |  |  | reaction + inheritance from 001 |  |
 
 ## 九、对白 / 配音 Timing Audit
 
@@ -126,12 +126,17 @@
 | 情绪落点 |  |  |  |
 | 结尾钩子 |  | threat_pending / result_only / other |  |
 
-## 十一、Missing-Shot / Handoff Audit
+## 十一、Continuity Audit / Missing-Shot / Handoff
+
+> Draft Storyboard 先执行本节；修复后才能标记 `approved_for_previs`。
 
 逐镜检查：
 
 - [ ] 上一镜结束状态能到达下一镜开始状态
 - [ ] 非第一镜有明确 handoff
+- [ ] v4 连续切镜有非空 `state_inheritance`
+- [ ] inheritance path 在上一镜 `end_state` 与本镜 `start_state` 中值一致
+- [ ] 连续物理动作使用同一 `action_id` 且 phase 不倒退
 - [ ] 动作相位没有跳过必须看清的阶段
 - [ ] eyeline 后有目标
 - [ ] insert 后能安全返回主动作
@@ -176,7 +181,21 @@
 |---|---|---|---|
 |  | low / medium / high |  |  |
 
-## 十四、交付摘要
+## 十四、Previs Validation Gate
+
+| 项目 | 状态/结果 |
+|---|---|
+| Continuity Audit | pass / revise / blocked |
+| Animatic comprehension | pass / revise / blocked |
+| Timing / performance | pass / revise / blocked |
+| Editability / coverage | pass / revise / blocked |
+| AI generation readiness | pass / revise / blocked |
+| Required pickups |  |
+| Approved runtime |  |
+
+只有全部关键项通过后才进入正式 AI Video Shot Production Packet / 模型 Prompt 编译。
+
+## 十五、交付摘要
 
 - 总镜数：
 - 总时长：
