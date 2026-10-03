@@ -1,4 +1,4 @@
-# Storyboard Data Contract v3
+# Storyboard Data Contract v3.2
 
 Markdown 给人评审，`storyboard.json` 给下游 Skill/自动化读取。两者必须来自同一份事实。
 
@@ -11,7 +11,9 @@ v3 的最重要变化：
 5. Dialogue 显式记录语言与 timing 来源；
 6. 非第一镜显式记录 `handoff_from_previous`；
 7. Scene 显式记录 `director_plan`；
-8. 战斗 Scene 可显式记录 `combat_plan`，Shot 可引用 Combat Beat。
+8. 每个 Scene 显式记录 `director_plan.sequence_type`；
+9. 非战斗 Scene 使用 `sequence_plan`，战斗 Scene 使用 `combat_plan`；
+10. Shot 可用 `sequence_context` / `combat_context` 认领导演层 Beat 并维护类型状态。
 
 ## 1. ID
 
@@ -34,7 +36,7 @@ Prop: P01
 
 ```json
 {
-  "schema_version": "3.0",
+  "schema_version": "3.2",
   "project": {
     "title": "项目名",
     "aspect_ratio": "9:16",
@@ -165,11 +167,49 @@ Hook 字段可选。
   ],
   "pacing": "neutral",
   "hook_role": "setup",
-  "sequence_type": "dialogue"
+  "sequence_type": "investigation_reveal",
+  "secondary_sequence_types": []
 }
 ```
 
-### 5.2 combat_plan（仅战斗场）
+### 5.2 sequence_plan（除 combat 外）
+
+```json
+"sequence_plan": {
+  "profile": "investigation_reveal",
+  "sequence_goal": "让观众确认 P01 是关键证据，但幕后者仍未知。",
+  "audience_question": "P01 能否证明 C02 在撒谎？",
+  "sequence_beats": [
+    {
+      "id": "E01-S01-SQ01",
+      "type": "evidence_found",
+      "purpose": "让证据第一次变得可读",
+      "source_beats": ["E01-S01-B01"],
+      "visible_change": "P01 背面刻印被发现"
+    }
+  ],
+  "spatial_plan": {},
+  "information_plan": {},
+  "rhythm_plan": ["search", "reveal", "reaction"],
+  "camera_strategy": "证据 insert 后切发现者反应",
+  "sound_strategy": "",
+  "continuity_priorities": ["evidence_state", "knowledge_state"]
+}
+```
+
+`sequence_plan.profile` 必须与主 `director_plan.sequence_type` 一致。
+
+Sequence Beat 是导演层观看阶段，不替代 Narrative Beat。每个 Sequence Beat 应由一个或多个 Shot 的 `sequence_context.sequence_beat_ids` 认领。
+
+### 5.3 sequence_type
+
+v3.2 核心枚举：
+
+`dialogue`, `confrontation_negotiation`, `emotional_intimacy`, `investigation_reveal`, `suspense_threat`, `horror_dread`, `stealth_infiltration`, `chase_escape`, `combat`, `physical_hazard_rescue`, `vehicle_action`, `disaster_survival`, `crowd_ensemble`, `comedy`, `montage_progression`, `performance_ritual`, `world_reveal_establishing`, `transition_travel`, `other`.
+
+完整路由见 `references/sequence-router.md`。
+
+### 5.4 combat_plan（仅战斗场）
 
 当：
 
@@ -338,7 +378,26 @@ timecode_out - timecode_in = duration_seconds
 
 `timecode_in/out` 表示集内/成片累计时间，不是 Segment 本地时间。
 
-### 7.2 Combat Context（战斗镜头可选/推荐）
+### 7.2 Sequence Context（非战斗镜头）
+
+```json
+"sequence_context": {
+  "sequence_beat_ids": ["E01-S01-SQ01"],
+  "state_start": {
+    "evidence_state": "hidden",
+    "knowledge_state": "uncertain"
+  },
+  "state_end": {
+    "evidence_state": "visible",
+    "knowledge_state": "confirmed"
+  },
+  "attention_target": "P01"
+}
+```
+
+状态键由 profile 决定。相邻镜没有 `motivated_jump / time_jump / scene_cut` 时，上一镜 `state_end` 与下一镜 `state_start` 的共同键应保持一致。
+
+### 7.3 Combat Context（战斗镜头可选/推荐）
 
 战斗 Shot 可增加：
 
