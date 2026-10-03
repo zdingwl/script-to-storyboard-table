@@ -2,7 +2,7 @@
 
 将剧本、对白稿、小说改编稿或已有导演计划转换为 **可拍、可剪、可校验、可供 AI 视频流水线继续读取的结构化分镜表**。
 
-当前版本：**v3.0.0（2026-10-03）**。
+当前版本：**v3.1.0（2026-10-03）**。
 
 核心入口是根目录 `SKILL.md`。详细方法按需拆到 `references/`，确定性检查放在 `scripts/`，符合 Skill 的渐进式加载思路。
 
@@ -20,6 +20,7 @@ v3 将正式流程改为：
 ```text
 剧情事实
 → 导演预规划
+→ Combat Plan（战斗场）
 → Narrative Beat
 → Atomic Shot
 → Continuity Handoff
@@ -43,6 +44,35 @@ v3 将正式流程改为：
 - `pacing` 与 `hook_role`。
 
 详见 `references/director-plan.md`。
+
+### 1.5 战斗场 Combat Plan
+
+战斗、打戏、持械冲突和多人混战不会直接按“逐招拆镜”。v3.1 增加：
+
+```text
+Director Plan
+→ Combat Plan
+→ Combat Beat
+→ Action Phase
+→ Atomic Shot
+→ Combat Handoff
+→ Aftermath
+```
+
+Combat Plan 会先建立：
+
+- Combat Goal；
+- 参与者目标/状态；
+- Arena Zones；
+- Combat Beats；
+- advantage 前后变化；
+- zone / range 前后变化；
+- Rhythm Plan；
+- 多人 theater；
+- camera strategy；
+- 道具/伤势/屏幕方向连续性。
+
+详见 `references/combat-planning.md`，并提供 `examples/combat-storyboard.example.json`。
 
 ### 2. Beat → Shot 可追溯
 
@@ -212,6 +242,7 @@ script-to-storyboard-table/
 │   └── openai.yaml
 ├── references/
 │   ├── director-plan.md
+│   ├── combat-planning.md
 │   ├── storyboard-method.md
 │   ├── dialogue-timing.md
 │   ├── schema.md
@@ -221,7 +252,8 @@ script-to-storyboard-table/
 ├── assets/
 │   └── storyboard-template.md
 ├── examples/
-│   └── storyboard.example.json
+│   ├── storyboard.example.json
+│   └── combat-storyboard.example.json
 ├── scripts/
 │   └── validate_storyboard.py
 └── tests/
@@ -318,7 +350,9 @@ python -m unittest discover -s tests -v
 - 翻译后禁止 `inherited_source` timing；
 - v3 禁止 Segment 内复制 Shot；
 - H3 Segment 时长越界；
-- handoff 必须指向真实前镜。
+- handoff 必须指向真实前镜；
+- combat Scene 必须存在 Combat Plan；
+- 战斗 Shot 的 zone/range/advantage 跨镜连续性。
 
 ## 数据迁移
 
@@ -347,5 +381,6 @@ python -m unittest discover -s tests -v
 
 ## 版本
 
+- `3.1.0` — Combat Plan、Combat Beat、Arena/Range/Advantage 连续性、战斗示例与 validator。
 - `3.0.0` — Director Plan、Handoff、跨语言 Timing、单一 Shot 事实源、Hook Audit、v3 validator + tests。
 - `2.0.0` — Beat ownership、Atomic Shot、Generation Segment、start/end state、H3 handoff。
