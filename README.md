@@ -402,7 +402,7 @@ python -m unittest discover -s tests -v
 
 ## 数据迁移
 
-已有 v2 数据不必重做剧情分析。按 `references/migration-v2-v3.md`：
+已有 v2 数据不必重做剧情分析。按 `references/migration-v2-v3.md` 迁移基础结构；已有 v3.1 项目再按 `references/migration-v3.1-v3.2.md` 增加 Sequence Router / Plan / Context。
 
 1. 收敛 Shot 到 `scene.shots`；
 2. Segment 改为 `shot_ids`；
