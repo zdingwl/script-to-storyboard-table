@@ -268,6 +268,45 @@ Scene.shots
 
 Storyboard 只检查“未决问题是否被镜头准确保留”，不在 faithful 模式凭空制造新悬念。
 
+## 11.6 Fight / Combat Storyboarding Research
+
+Source:
+
+- https://www.studiobinder.com/blog/how-to-storyboard-a-fight-scene/
+- https://www.studiobinder.com/blog/best-fight-scenes-sherlock-ritchie/
+- https://www.studiobinder.com/blog/how-to-shoot-dynamic-fight-scenes-that-keeps-audience-attention/
+- https://www.studiobinder.com/blog/what-is-a-match-on-action-cut/
+- https://nofilmschool.com/Jean-Paul-Ly-guest
+- https://nofilmschool.com/battle-of-the-gullet
+
+采用：
+
+- fight choreography / rehearsal / previz 应先于最终 shot design；
+- 战斗场本身需要 mini-story：目标、优势变化、反转、升级、结果；
+- wide / medium / close 应承担不同的空间、动作和情绪职责；
+- camera 应配合 choreography，而不是用复杂运动掩盖动作规划缺失；
+- match on action 对动作连续有效，但过度切动作会削弱 choreography 的可读性；
+- 大规模战斗可拆成多个 spatial theaters，再围绕 POV / story beat 交叉剪辑；
+- 战斗规划应通过 previz / rehearsal 验证人物和摄影机路线。
+
+本仓库进一步抽象为：
+
+```text
+Director Plan
+→ Combat Plan
+→ Combat Beat
+→ Action Phase
+→ Atomic Shot
+→ Combat Handoff
+→ Aftermath
+```
+
+没有采用：
+
+- 不把某一影片的具体打法当成通用规则；
+- 不提供真实格斗、武器使用或伤害优化；
+- 不把“镜头更碎”当作动作更有冲击力的默认结论。
+
 ## 12. 来源优先级
 
 冲突时：
