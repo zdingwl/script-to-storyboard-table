@@ -1,10 +1,10 @@
 ---
 name: script-to-storyboard-table
-description: 将剧本、对白稿、小说改编稿、导演计划或已有分镜转换、检查并修复为可拍、可剪、可供 AI 视频流水线读取的结构化分镜表。用于剧本转分镜、shot list、短剧/漫剧拆镜、导演预规划、战斗/动作场 Combat Plan、Beat→Shot 可追溯拆解、镜头时长与跨语言对白重算、人物调度、首尾状态、跨镜衔接、Generation Segment、连续性诊断，以及 MiniMax H3 等下游视频模型交接。默认忠实于原剧情；不负责擅自改剧情、生成最终视频 Prompt、图片或视频。
+description: 将剧本、对白稿、小说改编稿、导演计划或已有分镜转换、检查并修复为可拍、可剪、可供 AI 视频流水线读取的结构化分镜表。用于剧本转分镜、shot list、短剧/漫剧拆镜、导演预规划、Sequence Type Router、各种场型专用 Sequence Plan、战斗/动作场 Combat Plan、Beat→Shot 可追溯拆解、镜头时长与跨语言对白重算、人物调度、首尾状态、跨镜衔接、Generation Segment、连续性诊断，以及 MiniMax H3 等下游视频模型交接。默认忠实于原剧情；不负责擅自改剧情、生成最终视频 Prompt、图片或视频。
 compatibility: Portable Agent Skill. Works in ChatGPT/Codex/Claude-style agents that can read SKILL.md and local resources. Validator uses Python 3 standard library only.
 metadata:
   author: zdingwl
-  version: "3.1.0"
+  version: "3.2.0"
   updated: "2026-10-03"
 ---
 
@@ -16,7 +16,9 @@ metadata:
 
 ```text
 剧情事实
+→ Sequence Type Router
 → 导演预规划
+→ Type-specific Sequence Plan
 → Combat Plan（战斗场）
 → Beat
 → Atomic Shot
@@ -73,19 +75,22 @@ metadata:
 
 先读：
 
-1. `references/director-plan.md`
-2. `references/storyboard-method.md`
+1. `references/sequence-router.md`
+2. `references/director-plan.md`
+3. `references/storyboard-method.md`
+
+Router 根据 `sequence_type` 按需读取：
+
+- 对白 / 谈判 / 情感：`references/dialogue-emotion-planning.md`
+- 调查 / 悬疑 / 恐怖 / 潜入：`references/suspense-investigation-planning.md`
+- 追逐 / 载具 / 环境危险 / 救援：`references/chase-action-planning.md`
+- 战斗 / 打戏 / 多人动作：`references/combat-planning.md`
+- 灾难 / 群戏 / 喜剧 / 蒙太奇 / 表演 / 世界揭示 / 过渡：`references/tempo-spectacle-planning.md`
 
 需要结构化交付时再读：
 
-3. `references/schema.md`
-4. `assets/storyboard-template.md`
-
-### 战斗 / 打戏 / 多人动作场
-
-读取：
-
-5. `references/combat-planning.md`
+4. `references/schema.md`
+5. `assets/storyboard-template.md`
 
 ### 有对白、配音或翻译时
 
@@ -152,7 +157,37 @@ python scripts/validate_storyboard.py storyboard.json --strict
 
 后层不得覆盖前层。
 
-## 4. 必须先做导演预规划
+## 4. 必须先做 Sequence Type Router
+
+在正式 Director Plan 前，先判断这段戏由哪一种导演机制主导。
+
+核心 `sequence_type`：
+
+- `dialogue`
+- `confrontation_negotiation`
+- `emotional_intimacy`
+- `investigation_reveal`
+- `suspense_threat`
+- `horror_dread`
+- `stealth_infiltration`
+- `chase_escape`
+- `combat`
+- `physical_hazard_rescue`
+- `vehicle_action`
+- `disaster_survival`
+- `crowd_ensemble`
+- `comedy`
+- `montage_progression`
+- `performance_ritual`
+- `world_reveal_establishing`
+- `transition_travel`
+- `other`
+
+混合场型使用主类型 + secondary types；导演机制明显改变时拆 Sequence Block。
+
+完整规则见 `references/sequence-router.md`。
+
+## 5. 必须先做导演预规划
 
 如果用户已提供导演计划，读取并尊重；不要重新发明。
 
@@ -170,7 +205,31 @@ python scripts/validate_storyboard.py storyboard.json --strict
 
 导演预规划细则见 `references/director-plan.md`。
 
-### 4.1 战斗场必须增加 Combat Plan
+### 5.1 非战斗场必须增加 Type-specific Sequence Plan
+
+除 `combat` 外，v3.2 Scene 建立 `sequence_plan`：
+
+- `profile`：与主 `sequence_type` 一致；
+- `sequence_goal`：观看层必须完成什么；
+- `sequence_beats`：导演阶段，不等于 Narrative Beat；
+- `rhythm_plan`；
+- `camera_strategy`；
+- `continuity_priorities`。
+
+Shot 通过 `sequence_context.sequence_beat_ids` 认领 Sequence Beat，并用 `state_start/state_end` 维护场型状态。
+
+例如：
+
+- chase：route / gap / heading
+- suspense：threat_visibility / audience_knowledge
+- stealth：detection_state / cover
+- negotiation：power_holder / leverage
+- emotional：distance / trust / gaze
+- montage：progress_stage / chronology
+
+相邻镜没有明确 jump 时，同名状态必须连续。
+
+### 5.2 战斗场必须增加 Combat Plan
 
 如果 Scene 属于连续战斗、打戏、持械对抗或多人混战，在 Director Plan 中设置：
 
@@ -215,7 +274,7 @@ Director Plan
 
 完整规则见 `references/combat-planning.md`。
 
-## 5. 先拆 Beat，再拆 Shot
+## 6. 先拆 Beat，再拆 Shot
 
 Beat 是一次有意义的状态变化，不是句号或台词行。
 
@@ -246,7 +305,7 @@ E01-S03-B02
 - Beat 顺序不得倒置，除非有明确非线性结构；
 - coverage 镜头重复同一 Beat 时写 `coverage_exception`。
 
-## 6. Atomic Shot
+## 7. Atomic Shot
 
 一个正常 Shot 应同时满足：
 
@@ -271,7 +330,7 @@ E01-S03-B02
 
 允许长镜头，但要标记 `long_take_exception`，写明人物路线、摄影机路线、关键节点和拆镜备用方案。
 
-## 7. 每次切镜必须有理由
+## 8. 每次切镜必须有理由
 
 除第一镜外，每个 Shot 写：
 
@@ -299,7 +358,7 @@ E01-S03-B02
 
 如果说不清“为什么这里切、下一镜从哪里接”，优先认为缺镜、错镜或切点不成立。
 
-## 8. 时间与对白
+## 9. 时间与对白
 
 镜头时长由三件事共同决定：
 
@@ -330,7 +389,7 @@ E01-S03-B02
 
 详细规则见 `references/dialogue-timing.md`。
 
-## 9. Blocking 先于 Camera
+## 10. Blocking 先于 Camera
 
 每镜先确定：
 
@@ -355,7 +414,7 @@ E01-S03-B02
 
 不是为了“镜头丰富”而变化。
 
-## 10. 连续性合同
+## 11. 连续性合同
 
 每镜维护：
 
@@ -380,7 +439,7 @@ previous.end_state
 
 只检查首尾状态而不检查“中间如何切过去”，仍然不够。
 
-## 11. Coverage 与缺镜审计
+## 12. Coverage 与缺镜审计
 
 每场对照 Director Plan 的 `coverage_obligations` 检查：
 
@@ -395,7 +454,7 @@ previous.end_state
 
 不要为了“保险”无限增加 coverage；每个镜头都应有 `purpose` 和 `cut_reason`。
 
-## 12. 钩子只做“视觉兑现”，不擅改剧情
+## 13. 钩子只做“视觉兑现”，不擅改剧情
 
 短剧/漫剧如存在开场或结尾钩子，检查它是否被镜头语言准确保留。
 
@@ -412,7 +471,7 @@ previous.end_state
 
 本 Skill 可以调整镜头呈现，但在 `faithful` 模式下不能凭空增加悬念事实。
 
-## 13. Asset 使用
+## 14. Asset 使用
 
 有资产清单时使用稳定 ID：
 
@@ -431,7 +490,7 @@ P01 道具
 - 不替资产 Skill 发明具体脸、服装、材质、色彩设计；
 - 用 `pending` 标记待绑定项。
 
-## 14. Generation Segment
+## 15. Generation Segment
 
 只有下游需要“一次 AI 视频生成任务”时使用。
 
@@ -455,7 +514,7 @@ Segment 规则：
 
 Segment 内模型时间线从 `shot_ids + duration_seconds` **派生**，不维护第二份手写 cut 时间码。
 
-## 15. 时间码唯一语义
+## 16. 时间码唯一语义
 
 v3 中：
 
@@ -465,7 +524,7 @@ v3 中：
 
 这样可避免“分镜表显示 00:32，但 H3 Prompt 需要 0.00 秒起算”的歧义。
 
-## 16. 标准输出
+## 17. 标准输出
 
 默认 Markdown 主表至少包含：
 
@@ -493,7 +552,7 @@ v3 中：
 
 模板见 `assets/storyboard-template.md`。
 
-## 17. 机器 JSON
+## 18. 机器 JSON
 
 需要下游自动化时输出 `storyboard.json`。
 
@@ -508,7 +567,7 @@ v3 规则：
 
 完整字段见 `references/schema.md`。
 
-## 18. 增量修改
+## 19. 增量修改
 
 用户说“只改第 6、7 镜”时：
 
@@ -520,7 +579,7 @@ v3 规则：
 6. 不偷偷优化其他镜；
 7. 重新计算受影响后的时间码、Scene runtime 和 Segment runtime。
 
-## 19. 交付前质量门
+## 20. 交付前质量门
 
 ### A. 剧情保真
 
@@ -533,6 +592,15 @@ v3 规则：
 - 每场有 dramatic job 与 turn；
 - blocking / axis / coverage obligations 已明确；
 - Shot 设计能追溯到场次任务。
+
+### B1. Sequence Plan（非战斗场）
+
+- `sequence_type` 已通过 Router 确定；
+- `sequence_plan.profile` 与主类型一致；
+- Sequence Beats 能追溯 Narrative Beats；
+- 每个 Sequence Beat 至少被一个 Shot 认领；
+- 类型核心状态通过 `sequence_context.state_start/state_end` 跨镜连续；
+- profile 没有擅自制造剧情事实。
 
 ### B2. Combat Plan（战斗场）
 
@@ -580,7 +648,7 @@ v3 规则：
 - 没把“已经给出结果”误当“未决问题”；
 - 最后一镜没有提前把下一拍的信息泄完。
 
-## 20. Validator
+## 21. Validator
 
 生成 JSON 后运行：
 
@@ -606,11 +674,11 @@ python scripts/validate_storyboard.py storyboard.json
 
 修复 error；warning 可以保留，但在交付摘要解释。
 
-## 21. 最终交付顺序
+## 22. 最终交付顺序
 
 1. 分镜摘要：场次、镜数、总时长、Segment 数。
-2. Director Plan 摘要。
-3. Combat Plan 摘要（有战斗场时）。
+2. Sequence Type / Director Plan 摘要。
+3. Type-specific Sequence Plan / Combat Plan 摘要。
 4. 角色/场景/道具索引或待绑定资产。
 5. Beat 清单。
 6. 完整分镜表。
