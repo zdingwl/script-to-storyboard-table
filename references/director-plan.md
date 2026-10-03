@@ -28,9 +28,21 @@ Director Plan 不是第二份剧本，也不是风格提案。它只记录会直
   "turn": "本场真正发生变化的点",
   "entry_state": "进入本场时的重要状态",
   "exit_state": "离开本场时的重要状态",
+  "pov": "观众主要跟谁/保持什么观看位置",
+  "information_control": "此刻给什么、暂时不给什么",
+  "emotional_curve": "情绪如何从 A 发展到 B",
+  "power_shift": "优势是否/何时转移",
   "visual_strategy": "本场主要视觉组织逻辑",
+  "geography_plan": "关键空间锚点、入口、出口、障碍和关系",
   "blocking_plan": "人物起始关系、关键移动和结束关系",
   "axis_plan": "轴线如何建立/保持/有意越轴",
+  "camera_strategy": "摄影机为什么这样组织",
+  "lens_strategy": "wide/normal/telephoto 等叙事用途",
+  "lighting_strategy": "光线如何服务信息和情绪",
+  "editing_strategy": "节奏、切换密度、是否压缩/停留",
+  "sound_strategy": "环境、对白、静音点、声桥",
+  "transition_in": "如何承接上一场",
+  "transition_out": "如何进入下一场",
   "coverage_obligations": [
     "观众必须看清的动作/证据/反应"
   ],
@@ -38,6 +50,8 @@ Director Plan 不是第二份剧本，也不是风格提案。它只记录会直
   "hook_role": "none | setup | escalation | end_hook"
 }
 ```
+
+其中 `lens_strategy` 先写叙事意图，不必在没有项目镜头体系时虚构具体焦段；`lighting_strategy` 应服从项目 Visual Bible，而不是每场重新发明 look。
 
 ## 3. dramatic_job
 
