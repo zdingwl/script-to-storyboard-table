@@ -63,6 +63,74 @@ class StoryboardValidatorTests(unittest.TestCase):
         errors, _ = validator.validate(data)
         self.assertTrue(any("does not match previous shot" in x for x in errors))
 
+    def test_combat_scene_requires_combat_plan(self):
+        data = copy.deepcopy(self.base)
+        scene = data["episodes"][0]["scenes"][0]
+        scene["director_plan"]["sequence_type"] = "combat"
+        errors, _ = validator.validate(data)
+        self.assertTrue(any("sequence_type=combat requires combat_plan" in x for x in errors))
+
+    def test_combat_context_continuity_is_validated(self):
+        data = copy.deepcopy(self.base)
+        scene = data["episodes"][0]["scenes"][0]
+        scene["director_plan"]["sequence_type"] = "combat"
+        scene["combat_plan"] = {
+            "combat_goal": "C01 must get past C02.",
+            "participants": [{"character_id": "C01"}, {"character_id": "C02"}],
+            "arena": {
+                "zones": [{"id": "Z1", "name": "door"}, {"id": "Z2", "name": "table"}]
+            },
+            "combat_beats": [
+                {
+                    "id": "E01-S01-CB01",
+                    "type": "pressure",
+                    "advantage_before": "C01",
+                    "advantage_after": "C02",
+                    "zone_before": "Z1",
+                    "zone_after": "Z2",
+                    "range_before": "mid",
+                    "range_after": "close",
+                    "visible_result": "C01 is forced toward the table.",
+                    "source_beats": ["E01-S01-B01"]
+                },
+                {
+                    "id": "E01-S01-CB02",
+                    "type": "aftermath",
+                    "advantage_before": "C02",
+                    "advantage_after": "C02",
+                    "zone_before": "Z2",
+                    "zone_after": "Z2",
+                    "range_before": "close",
+                    "range_after": "close",
+                    "source_beats": ["E01-S01-B02"]
+                }
+            ],
+            "camera_strategy": "Wide establishes geography, then medium-close for the reversal.",
+            "continuity_priorities": ["zone", "range", "advantage"]
+        }
+        scene["shots"][0]["combat_context"] = {
+            "combat_beat_ids": ["E01-S01-CB01"],
+            "action_phase": "reaction",
+            "zone_start": "Z1",
+            "zone_end": "Z2",
+            "range_start": "mid",
+            "range_end": "close",
+            "advantage_start": "C01",
+            "advantage_end": "C02"
+        }
+        scene["shots"][1]["combat_context"] = {
+            "combat_beat_ids": ["E01-S01-CB02"],
+            "action_phase": "aftermath",
+            "zone_start": "Z1",
+            "zone_end": "Z2",
+            "range_start": "close",
+            "range_end": "close",
+            "advantage_start": "C02",
+            "advantage_end": "C02"
+        }
+        errors, _ = validator.validate(data)
+        self.assertTrue(any("zone_start='Z1' does not continue previous zone_end='Z2'" in x for x in errors))
+
 
 if __name__ == "__main__":
     unittest.main()
