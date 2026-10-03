@@ -307,6 +307,47 @@ Director Plan
 - 不提供真实格斗、武器使用或伤害优化；
 - 不把“镜头更碎”当作动作更有冲击力的默认结论。
 
+## 11.7 Sequence-specific Scene Planning Research
+
+新增场型路由主要对照：
+
+- StudioBinder dialogue / reaction / coverage:
+  - https://www.studiobinder.com/blog/shot-reverse-shot-cutaways-coverage/
+  - https://www.studiobinder.com/blog/film-coverage/
+- StudioBinder blocking / staging:
+  - https://www.studiobinder.com/blog/blocking-and-staging-scenes/
+  - https://www.studiobinder.com/blog/film-blocking-techniques/
+- StudioBinder suspense / negative space:
+  - https://www.studiobinder.com/blog/elements-of-suspense/
+  - https://www.studiobinder.com/camera-shots/composition/negative-space-in-film/
+- StudioBinder chase:
+  - https://www.studiobinder.com/blog/best-car-chase-scenes-shots/
+- StudioBinder montage:
+  - https://www.studiobinder.com/blog/storyboard-montage/
+  - https://www.studiobinder.com/blog/how-to-write-a-montage/
+- Google Veo video prompt guide:
+  - https://docs.cloud.google.com/vertex-ai/generative-ai/docs/video/video-gen-prompt-guide
+
+采用结论：
+
+- 不同 Scene 类型应追踪不同的叙事/空间状态，而不是统一套镜头术语；
+- 对话 coverage 随信息、权力、反应与 blocking 变化；
+- suspense 依赖问题、延迟答案与信息释放，而不是随机 camera 晃动；
+- chase 必须维持 screen direction、eye-line、orientation 与目标可读性；
+- montage 必须预先规划镜头间节奏、方向、对比与 progression；
+- AI 视频的 action/camera/time 描述必须符合短片可完成性。
+
+本仓库据此抽象为：
+
+```text
+Sequence Type Router
+→ Type-specific Sequence Plan
+→ Sequence Beat
+→ Shot sequence_context
+→ cross-shot state validation
+```
+
+
 ## 12. 来源优先级
 
 冲突时：
