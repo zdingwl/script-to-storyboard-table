@@ -1,4 +1,4 @@
-# 《项目名》分镜表 v3
+# 《项目名》分镜表 v3.2
 
 > 人工评审主视图。进入关键帧、图片 Prompt、视频 Prompt 或自动化流水线时，同步维护 `storyboard.json`。
 
@@ -22,11 +22,23 @@
 
 ## 二、Director Plan
 
-| Scene | Sequence Type | Dramatic Job | Turn | Blocking / Axis | Coverage Obligations | Pacing | Hook Role |
+| Scene | Sequence Type | Secondary Types | Dramatic Job | Turn | Blocking / Axis | Coverage Obligations | Pacing | Hook Role |
 |---|---|---|---|---|---|---|
-| E01-S01 | dialogue / combat / chase / action / other |  |  |  |  | neutral | none |
+| E01-S01 | investigation_reveal |  |  |  |  |  | neutral | none |
 
-## 二-A、Combat Plan（仅战斗场）
+## 二-A、Sequence Plan（非战斗场）
+
+| Scene | Profile | Sequence Goal | Audience Question | Sequence Beats | Rhythm | Camera Strategy | Continuity Priorities |
+|---|---|---|---|---|---|---|---|
+| E01-S01 | investigation_reveal |  |  | SQ01–SQ03 |  |  |  |
+
+### Sequence Beat 明细
+
+| Sequence Beat | 类型 | 导演职责 | Source Beats | 可见变化 |
+|---|---|---|---|---|
+| E01-S01-SQ01 | evidence_found |  | E01-S01-B01 |  |
+
+## 二-B、Combat Plan（仅战斗场）
 
 | Scene | Combat Goal | Participants | Arena Zones | Combat Beats | Rhythm | Camera Strategy | Continuity Priorities |
 |---|---|---|---|---|---|---|---|
@@ -84,7 +96,7 @@
 
 ## 八、完整分镜表
 
-| 镜号 | 生成段 | 场次 | 时间码 | 时长 | 原剧本节拍 | Combat Context | 镜头职责 | 切点理由 | 景别/角度 | 运镜 | 画面与构图 | 人物/调度 | 动作/表演 | 台词/旁白 + timing | 声音 | 资产 | 首帧状态 | 尾帧状态 | 衔接合同 | 连续性/风险 |
+| 镜号 | 生成段 | 场次 | 时间码 | 时长 | 原剧本节拍 | Sequence / Combat Context | 镜头职责 | 切点理由 | 景别/角度 | 运镜 | 画面与构图 | 人物/调度 | 动作/表演 | 台词/旁白 + timing | 声音 | 资产 | 首帧状态 | 尾帧状态 | 衔接合同 | 连续性/风险 |
 |---|---|---|---|---:|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | E01-S01-001 | E01-S01-G01 | E01-S01 | 00:00–00:03 | 3s | E01-S01-B01 |  |  | 中近景 / 平视 | 固定 |  |  |  |  |  |  |  |  | first shot |  |
 | E01-S01-002 | E01-S01-G01 | E01-S01 | 00:03–00:06 | 3s | E01-S01-B02 |  |  | 近景 / 平视 | 固定 |  |  |  |  |  |  |  |  | reaction from 001 |  |
