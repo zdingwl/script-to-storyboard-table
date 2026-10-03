@@ -18,7 +18,7 @@ class StoryboardValidatorTests(unittest.TestCase):
     def setUpClass(cls):
         cls.base = json.loads(EXAMPLE.read_text(encoding="utf-8"))
 
-    def test_valid_v3_example(self):
+    def test_valid_v4_example(self):
         errors, warnings = validator.validate(copy.deepcopy(self.base))
         self.assertEqual(errors, [])
         self.assertEqual(warnings, [])
@@ -62,6 +62,43 @@ class StoryboardValidatorTests(unittest.TestCase):
         handoff["from_shot_id"] = "E01-S01-999"
         errors, _ = validator.validate(data)
         self.assertTrue(any("does not match previous shot" in x for x in errors))
+
+    def test_v4_continuous_handoff_requires_state_inheritance(self):
+        data = copy.deepcopy(self.base)
+        handoff = data["episodes"][0]["scenes"][0]["shots"][1]["handoff_from_previous"]
+        handoff.pop("state_inheritance", None)
+        errors, _ = validator.validate(data)
+        self.assertTrue(any("v4 requires non-empty state_inheritance" in x for x in errors))
+
+    def test_v4_state_inheritance_detects_world_state_break(self):
+        data = copy.deepcopy(self.base)
+        shot = data["episodes"][0]["scenes"][0]["shots"][1]
+        shot["start_state"]["props"]["P01"]["holder"] = "table"
+        errors, _ = validator.validate(data)
+        self.assertTrue(any("props.P01.holder" in x and "does not continue" in x for x in errors))
+
+    def test_v4_match_on_action_requires_same_action_id(self):
+        data = copy.deepcopy(self.base)
+        scene = data["episodes"][0]["scenes"][0]
+        scene["shots"][1]["handoff_from_previous"]["type"] = "match_on_action"
+        scene["shots"][1]["action_state"] = {
+            "action_id": "ACT-OTHER",
+            "phase_start": "result",
+            "phase_end": "reaction",
+        }
+        errors, _ = validator.validate(data)
+        self.assertTrue(any("match_on_action must continue the same action_id" in x for x in errors))
+
+    def test_v4_action_phase_cannot_move_backward(self):
+        data = copy.deepcopy(self.base)
+        scene = data["episodes"][0]["scenes"][0]
+        scene["shots"][1]["action_state"] = {
+            "action_id": "ACT-P01-FLIP",
+            "phase_start": "contact",
+            "phase_end": "execution",
+        }
+        errors, _ = validator.validate(data)
+        self.assertTrue(any("moves backward" in x for x in errors))
 
     def test_combat_scene_requires_combat_plan(self):
         data = copy.deepcopy(self.base)
