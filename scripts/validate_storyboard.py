@@ -10,6 +10,15 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 VALID_MODES = {"faithful", "visual", "pacing", "story"}
+SEQUENCE_TYPES = {
+    "dialogue", "confrontation_negotiation", "emotional_intimacy",
+    "investigation_reveal", "suspense_threat", "horror_dread",
+    "stealth_infiltration", "chase_escape", "combat",
+    "physical_hazard_rescue", "vehicle_action", "disaster_survival",
+    "crowd_ensemble", "comedy", "montage_progression",
+    "performance_ritual", "world_reveal_establishing",
+    "transition_travel", "other",
+}
 HANDOFF_TYPES = {
     "direct", "match_on_action", "eyeline", "reaction", "insert",
     "insert_return", "sound_bridge", "reframe", "motivated_jump",
@@ -67,8 +76,9 @@ def validate(data):
         return ["root: JSON must be an object"], []
 
     version = str(data.get("schema_version", ""))
-    if version != "3.0":
-        warn(f"root: schema_version {version!r}; validator is optimized for 3.0")
+    strict_sequence_schema = version == "3.2"
+    if version not in {"3.0", "3.2"}:
+        warn(f"root: schema_version {version!r}; validator is optimized for 3.2")
 
     project = data.get("project") or {}
     if project.get("mode", "faithful") not in VALID_MODES:
@@ -125,11 +135,16 @@ def validate(data):
             uid(scene_id, scw)
 
             is_combat = False
+            sequence_type = None
+            sequence_ids = set()
+            sequence_beats_data = []
+            sequence_coverage = Counter()
             combat_ids = set()
             combat_zones = set()
             combat_beats_data = []
+            combat_coverage = Counter()
 
-            if version == "3.0":
+            if version in {"3.0", "3.2"}:
                 plan = scene.get("director_plan")
                 if not isinstance(plan, dict):
                     warn(f"{scw}: missing director_plan")
@@ -138,7 +153,44 @@ def validate(data):
                         if not plan.get(key): warn(f"{scw}.director_plan: missing {key}")
                     if not plan.get("coverage_obligations"):
                         warn(f"{scw}.director_plan: no coverage_obligations")
-                    is_combat = plan.get("sequence_type") == "combat"
+                    sequence_type = plan.get("sequence_type")
+                    if strict_sequence_schema and not sequence_type:
+                        error(f"{scw}.director_plan: missing sequence_type")
+                    if sequence_type and sequence_type not in SEQUENCE_TYPES:
+                        error(f"{scw}.director_plan: unsupported sequence_type {sequence_type!r}")
+                    is_combat = sequence_type == "combat"
+
+                if strict_sequence_schema and sequence_type and not is_combat:
+                    sequence_plan = scene.get("sequence_plan")
+                    if not isinstance(sequence_plan, dict):
+                        error(f"{scw}: sequence_type={sequence_type} requires sequence_plan")
+                    else:
+                        if sequence_plan.get("profile") != sequence_type:
+                            error(
+                                f"{scw}.sequence_plan.profile {sequence_plan.get('profile')!r} "
+                                f"does not match sequence_type {sequence_type!r}"
+                            )
+                        for key in ("sequence_goal", "rhythm_plan", "camera_strategy", "continuity_priorities"):
+                            if not sequence_plan.get(key):
+                                warn(f"{scw}.sequence_plan: missing {key}")
+                        sqbeats = sequence_plan.get("sequence_beats") or []
+                        if not isinstance(sqbeats, list) or not sqbeats:
+                            error(f"{scw}.sequence_plan: sequence_beats must be a non-empty list")
+                            sqbeats = []
+                        for sqi, sqbeat in enumerate(sqbeats, 1):
+                            sqw = f"{scw}.sequence_plan.sequence_beats[{sqi}]"
+                            if not isinstance(sqbeat, dict):
+                                error(f"{sqw}: expected object")
+                                continue
+                            sqid = sqbeat.get("id")
+                            uid(sqid, sqw)
+                            if sqid:
+                                sequence_ids.add(str(sqid))
+                            if not sqbeat.get("purpose"):
+                                warn(f"{sqw}: missing purpose")
+                            if not sqbeat.get("visible_change"):
+                                warn(f"{sqw}: missing visible_change")
+                            sequence_beats_data.append((sqw, sqbeat))
 
                 if is_combat:
                     combat = scene.get("combat_plan")
@@ -221,6 +273,12 @@ def validate(data):
                     if beat.get("must_preserve", True): must.add(bid)
             beat_set, coverage = set(beat_ids), Counter()
 
+            if strict_sequence_schema and sequence_type and not is_combat:
+                for sqw, sqbeat in sequence_beats_data:
+                    for bid in sqbeat.get("source_beats") or []:
+                        if beat_set and str(bid) not in beat_set:
+                            error(f"{sqw}: unknown source beat {bid}")
+
             if is_combat:
                 for cw, cbeat in combat_beats_data:
                     for bid in cbeat.get("source_beats") or []:
@@ -233,6 +291,7 @@ def validate(data):
                 shots = []
             shot_by_id, shot_order = {}, []
             previous_id, previous_out = None, None
+            previous_sequence_context = None
             previous_combat_context = None
 
             for qi, shot in enumerate(shots, 1):
@@ -281,6 +340,24 @@ def validate(data):
                     for key in ("purpose", "cut_reason"):
                         if not shot.get(key): warn(f"{sw}: missing {key}")
 
+                sequence_context = shot.get("sequence_context")
+                if strict_sequence_schema and sequence_type and not is_combat:
+                    if not isinstance(sequence_context, dict):
+                        warn(f"{sw}: missing sequence_context")
+                        sequence_context = None
+                    else:
+                        sqids = sequence_context.get("sequence_beat_ids") or []
+                        if not sqids:
+                            warn(f"{sw}.sequence_context: no sequence_beat_ids")
+                        for sqid in map(str, sqids):
+                            sequence_coverage[sqid] += 1
+                            if sequence_ids and sqid not in sequence_ids:
+                                error(f"{sw}.sequence_context: unknown sequence beat {sqid}")
+                        if not isinstance(sequence_context.get("state_start"), dict):
+                            warn(f"{sw}.sequence_context: missing state_start")
+                        if not isinstance(sequence_context.get("state_end"), dict):
+                            warn(f"{sw}.sequence_context: missing state_end")
+
                 combat_context = shot.get("combat_context")
                 if is_combat and combat_context is not None:
                     if not isinstance(combat_context, dict):
@@ -291,6 +368,7 @@ def validate(data):
                         if not cbids:
                             warn(f"{sw}.combat_context: no combat_beat_ids")
                         for cbid in map(str, cbids):
+                            combat_coverage[cbid] += 1
                             if combat_ids and cbid not in combat_ids:
                                 error(f"{sw}.combat_context: unknown combat beat {cbid}")
                         phase = combat_context.get("action_phase")
@@ -360,6 +438,29 @@ def validate(data):
                         for aid in refs.get(kind) or []:
                             if asset_ids[kind] and str(aid) not in asset_ids[kind]:
                                 error(f"{sw}: unknown {kind[:-1]} asset {aid}")
+                if (
+                    strict_sequence_schema
+                    and sequence_type
+                    and not is_combat
+                    and isinstance(sequence_context, dict)
+                    and isinstance(previous_sequence_context, dict)
+                ):
+                    handoff_type = (handoff or {}).get("type") if isinstance(handoff, dict) else None
+                    allow_jump = handoff_type in {"motivated_jump", "time_jump", "scene_cut"}
+                    if not allow_jump:
+                        prev_state = previous_sequence_context.get("state_end") or {}
+                        cur_state = sequence_context.get("state_start") or {}
+                        if isinstance(prev_state, dict) and isinstance(cur_state, dict):
+                            for key in sorted(set(prev_state) & set(cur_state)):
+                                if prev_state[key] != cur_state[key]:
+                                    error(
+                                        f"{sw}.sequence_context: state_start[{key!r}]={cur_state[key]!r} "
+                                        f"does not continue previous state_end={prev_state[key]!r}"
+                                    )
+                previous_sequence_context = (
+                    sequence_context if isinstance(sequence_context, dict) else None
+                )
+
                 if is_combat and isinstance(combat_context, dict) and isinstance(previous_combat_context, dict):
                     handoff_type = (handoff or {}).get("type") if isinstance(handoff, dict) else None
                     allow_jump = handoff_type in {"motivated_jump", "time_jump", "scene_cut"}
@@ -450,6 +551,16 @@ def validate(data):
 
             for sid, segs in memberships.items():
                 if len(segs) > 1: error(f"{scw}: shot {sid} belongs to multiple generation segments {segs}")
+
+            if strict_sequence_schema and sequence_type and not is_combat:
+                for sqid in sorted(sequence_ids):
+                    if sequence_coverage[sqid] == 0:
+                        error(f"{scw}: sequence beat not covered by any shot: {sqid}")
+            if is_combat:
+                for cbid in sorted(combat_ids):
+                    if combat_coverage[cbid] == 0:
+                        error(f"{scw}: combat beat not covered by any shot: {cbid}")
+
             for bid in beat_ids:
                 if bid in must and coverage[bid] == 0: error(f"{scw}: must-preserve beat not covered: {bid}")
                 elif coverage[bid] > 1:
