@@ -131,6 +131,34 @@ class StoryboardValidatorTests(unittest.TestCase):
         errors, _ = validator.validate(data)
         self.assertTrue(any("zone_start='Z1' does not continue previous zone_end='Z2'" in x for x in errors))
 
+    def test_v32_requires_sequence_type(self):
+        data = copy.deepcopy(self.base)
+        scene = data["episodes"][0]["scenes"][0]
+        scene["director_plan"].pop("sequence_type", None)
+        errors, _ = validator.validate(data)
+        self.assertTrue(any("missing sequence_type" in x for x in errors))
+
+    def test_v32_requires_matching_sequence_plan(self):
+        data = copy.deepcopy(self.base)
+        scene = data["episodes"][0]["scenes"][0]
+        scene["sequence_plan"]["profile"] = "dialogue"
+        errors, _ = validator.validate(data)
+        self.assertTrue(any("does not match sequence_type" in x for x in errors))
+
+    def test_sequence_beat_must_be_covered(self):
+        data = copy.deepcopy(self.base)
+        scene = data["episodes"][0]["scenes"][0]
+        scene["shots"][1].pop("sequence_context", None)
+        errors, _ = validator.validate(data)
+        self.assertTrue(any("sequence beat not covered by any shot" in x for x in errors))
+
+    def test_sequence_context_state_continuity(self):
+        data = copy.deepcopy(self.base)
+        scene = data["episodes"][0]["scenes"][0]
+        scene["shots"][1]["sequence_context"]["state_start"]["evidence_state"] = "hidden"
+        errors, _ = validator.validate(data)
+        self.assertTrue(any("does not continue previous state_end" in x for x in errors))
+
 
 if __name__ == "__main__":
     unittest.main()
