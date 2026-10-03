@@ -348,6 +348,46 @@ Sequence Type Router
 ```
 
 
+## 11.8 Previs / Visual Bible / Virtual Production Research
+
+Source:
+
+- OpenAI Skills:
+  - https://learn.chatgpt.com/docs/build-skills
+  - https://learn.chatgpt.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra
+- Unreal Engine Virtual Scouting:
+  - https://dev.epicgames.com/documentation/en-us/unreal-engine/virtual-scouting-in-unreal-engine
+- Unreal Engine sequence organization:
+  - https://dev.epicgames.com/documentation/en-us/unreal-engine/sequences-folder-structure
+- StudioBinder Previs / Animatic:
+  - https://www.studiobinder.com/blog/what-is-previs-previsualization-in-film/
+  - https://www.studiobinder.com/blog/what-is-an-animatic-definition/
+  - https://www.studiobinder.com/blog/how-to-make-an-animatic/
+  - https://www.studiobinder.com/templates/storyboards/storyboard-animatic-template/
+- StudioBinder Film Lookbook:
+  - https://www.studiobinder.com/blog/film-lookbook-examples/
+
+采用：
+
+- Skill root 保持 router，复杂工作流通过 references 渐进加载；
+- previs 用于在高成本最终生产前验证 shot interaction、timing、blocking 与 sequence flow；
+- animatic 把 storyboard 放入时间线，并加入临时对白、声音和运动信息；
+- virtual scouting / previs 的核心价值包括 location、composition、blocking 与 camera 决策的提前验证；
+- lookbook / visual bible 作为多个创意部门共享的视觉蓝图；
+- 当前 Skill 只负责 previsualization package 与生产交接，不直接承担最终生成、剪辑、声音、VFX 和调色。
+
+本仓库据此新增：
+
+```text
+Script Lock
+→ Visual Bible Contract
+→ Asset State Matrix
+→ Storyboard
+→ Animatic / Previs Gate
+→ Shot Production Packet
+→ Pickup Feedback Loop
+```
+
 ## 12. 来源优先级
 
 冲突时：
