@@ -1,4 +1,4 @@
 interface:
-  display_name: "剧本转分镜表"
-  short_description: "把剧本拆成可拍、可剪、可供 AI 视频流水线继续读取的结构化分镜表"
-  default_prompt: "将输入内容按 faithful 模式转换为 v3 分镜：先判断 sequence_type 并加载对应场型规划；再做导演预规划与 Sequence Plan，战斗场使用 Combat Plan，然后拆 Beat 和 Atomic Shot，检查跨镜衔接、连续性与对白时长；需要自动化接力时同时生成 storyboard.json。"
+  display_name: "AI Director & Cinematic Previsualization"
+  short_description: "把锁定剧本编译成导演规划、分镜、Previs 与 AI 视频 Shot Packets"
+  default_prompt: "将输入内容按 faithful 模式转换为 cinematic previs：先做 Script Lock / Story Contract，先判断 sequence_type 并加载对应场型规划；再做导演预规划与 Sequence Plan，战斗场使用 Combat Plan，然后拆 Beat 和 Atomic Shot，检查跨镜衔接、连续性与对白时长；需要自动化接力时同时生成 storyboard.json。"
