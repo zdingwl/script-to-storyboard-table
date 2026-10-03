@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic validator for script-to-storyboard-table schema v3."""
+"""Deterministic validator for script-to-storyboard-table schema v4."""
 from __future__ import annotations
 
 import argparse
@@ -39,6 +39,12 @@ COMBAT_PHASES = {
     "impact_or_near_impact", "reaction", "recovery_or_reposition",
     "aftermath",
 }
+ACTION_PHASES = (
+    "prepare", "approach", "contact", "execution",
+    "result", "reaction", "recovery", "aftermath",
+)
+ACTION_PHASE_ORDER = {name: index for index, name in enumerate(ACTION_PHASES)}
+CONTINUITY_JUMP_TYPES = {"motivated_jump", "time_jump", "scene_cut"}
 H3_RULES_VERIFIED_AT = "2026-10-03"
 H3 = {
     "min": 4.0, "max": 15.0, "images": 9, "videos": 3, "audios": 3,
@@ -56,6 +62,19 @@ def number(value):
 
 def close(a, b, eps=1e-3):
     return math.isclose(float(a), float(b), abs_tol=eps)
+
+
+_MISSING = object()
+
+
+def nested_get(mapping, path):
+    """Read a dot-separated path from a nested mapping without guessing."""
+    current = mapping
+    for part in str(path).split("."):
+        if not isinstance(current, dict) or part not in current:
+            return _MISSING
+        current = current[part]
+    return current
 
 
 def validate(data):
@@ -76,9 +95,10 @@ def validate(data):
         return ["root: JSON must be an object"], []
 
     version = str(data.get("schema_version", ""))
-    strict_sequence_schema = version == "3.2"
-    if version not in {"3.0", "3.2"}:
-        warn(f"root: schema_version {version!r}; validator is optimized for 3.2")
+    strict_sequence_schema = version in {"3.2", "4.0"}
+    strict_continuity_schema = version == "4.0"
+    if version not in {"3.0", "3.2", "4.0"}:
+        warn(f"root: schema_version {version!r}; validator is optimized for 4.0")
 
     project = data.get("project") or {}
     if project.get("mode", "faithful") not in VALID_MODES:
@@ -144,7 +164,7 @@ def validate(data):
             combat_beats_data = []
             combat_coverage = Counter()
 
-            if version in {"3.0", "3.2"}:
+            if version in {"3.0", "3.2", "4.0"}:
                 plan = scene.get("director_plan")
                 if not isinstance(plan, dict):
                     warn(f"{scw}: missing director_plan")
@@ -291,6 +311,7 @@ def validate(data):
                 shots = []
             shot_by_id, shot_order = {}, []
             previous_id, previous_out = None, None
+            previous_shot = None
             previous_sequence_context = None
             previous_combat_context = None
 
@@ -336,7 +357,11 @@ def validate(data):
 
                 for key in ("start_state", "end_state", "shot_size", "camera_movement"):
                     if not shot.get(key): warn(f"{sw}: missing {key}")
-                if version in {"3.0", "3.2"}:
+                if strict_continuity_schema:
+                    for key in ("start_state", "end_state"):
+                        if not isinstance(shot.get(key), dict):
+                            error(f"{sw}.{key}: v4 requires an object for machine-readable continuity")
+                if version in {"3.0", "3.2", "4.0"}:
                     for key in ("purpose", "cut_reason"):
                         if not shot.get(key): warn(f"{sw}: missing {key}")
 
@@ -384,16 +409,115 @@ def validate(data):
                                 error(f"{sw}.combat_context.{key}: unknown combat zone {value!r}")
 
                 handoff = shot.get("handoff_from_previous")
-                if qi > 1 and version in {"3.0", "3.2"}:
+                if qi > 1 and version in {"3.0", "3.2", "4.0"}:
                     if not isinstance(handoff, dict):
-                        warn(f"{sw}: missing handoff_from_previous")
+                        (error if strict_continuity_schema else warn)(f"{sw}: missing handoff_from_previous")
                     else:
-                        if handoff.get("type") not in HANDOFF_TYPES:
-                            error(f"{sw}.handoff_from_previous: unsupported type {handoff.get('type')!r}")
+                        handoff_type = handoff.get("type")
+                        if handoff_type not in HANDOFF_TYPES:
+                            error(f"{sw}.handoff_from_previous: unsupported type {handoff_type!r}")
                         if handoff.get("from_shot_id") != previous_id:
                             error(f"{sw}.handoff_from_previous.from_shot_id does not match previous shot {previous_id!r}")
                         if not handoff.get("reason"):
                             warn(f"{sw}.handoff_from_previous: missing reason")
+
+                        if strict_continuity_schema:
+                            inheritance = handoff.get("state_inheritance")
+                            if handoff_type not in CONTINUITY_JUMP_TYPES:
+                                if not isinstance(inheritance, list) or not inheritance:
+                                    error(
+                                        f"{sw}.handoff_from_previous: v4 requires non-empty "
+                                        "state_inheritance for continuous cuts"
+                                    )
+                                elif isinstance(previous_shot, dict):
+                                    prev_end = previous_shot.get("end_state")
+                                    cur_start = shot.get("start_state")
+                                    if isinstance(prev_end, dict) and isinstance(cur_start, dict):
+                                        seen_paths = set()
+                                        for pi, path in enumerate(inheritance, 1):
+                                            pw = f"{sw}.handoff_from_previous.state_inheritance[{pi}]"
+                                            if not isinstance(path, str) or not path.strip():
+                                                error(f"{pw}: expected non-empty dot path")
+                                                continue
+                                            path = path.strip()
+                                            if path in seen_paths:
+                                                warn(f"{pw}: duplicate path {path!r}")
+                                            seen_paths.add(path)
+                                            prev_value = nested_get(prev_end, path)
+                                            cur_value = nested_get(cur_start, path)
+                                            if prev_value is _MISSING:
+                                                error(f"{pw}: path {path!r} missing from previous end_state")
+                                            if cur_value is _MISSING:
+                                                error(f"{pw}: path {path!r} missing from current start_state")
+                                            if (
+                                                prev_value is not _MISSING
+                                                and cur_value is not _MISSING
+                                                and prev_value != cur_value
+                                            ):
+                                                error(
+                                                    f"{pw}: {path!r}={cur_value!r} does not continue "
+                                                    f"previous end_state value {prev_value!r}"
+                                                )
+                            elif inheritance is not None and not isinstance(inheritance, list):
+                                error(f"{sw}.handoff_from_previous.state_inheritance: expected list")
+
+                action_state = shot.get("action_state")
+                if action_state is not None:
+                    if not isinstance(action_state, dict):
+                        error(f"{sw}.action_state: expected object")
+                        action_state = None
+                    else:
+                        action_id = action_state.get("action_id")
+                        phase_start = action_state.get("phase_start")
+                        phase_end = action_state.get("phase_end")
+                        if not action_id:
+                            error(f"{sw}.action_state: missing action_id")
+                        for key, value in (("phase_start", phase_start), ("phase_end", phase_end)):
+                            if value not in ACTION_PHASE_ORDER:
+                                error(f"{sw}.action_state.{key}: unsupported phase {value!r}")
+                        if phase_start in ACTION_PHASE_ORDER and phase_end in ACTION_PHASE_ORDER:
+                            if ACTION_PHASE_ORDER[phase_start] > ACTION_PHASE_ORDER[phase_end]:
+                                error(f"{sw}.action_state: phase_end occurs before phase_start")
+
+                if (
+                    strict_continuity_schema
+                    and qi > 1
+                    and isinstance(previous_shot, dict)
+                    and isinstance(handoff, dict)
+                ):
+                    prev_action = previous_shot.get("action_state")
+                    current_action = action_state if isinstance(action_state, dict) else None
+                    handoff_type = handoff.get("type")
+                    if handoff_type == "match_on_action":
+                        if not isinstance(prev_action, dict) or not isinstance(current_action, dict):
+                            error(f"{sw}: match_on_action requires action_state on both adjacent shots")
+                        elif prev_action.get("action_id") != current_action.get("action_id"):
+                            error(
+                                f"{sw}: match_on_action must continue the same action_id; "
+                                f"got {prev_action.get('action_id')!r} -> {current_action.get('action_id')!r}"
+                            )
+                    if (
+                        isinstance(prev_action, dict)
+                        and isinstance(current_action, dict)
+                        and prev_action.get("action_id")
+                        and prev_action.get("action_id") == current_action.get("action_id")
+                        and handoff_type not in CONTINUITY_JUMP_TYPES
+                    ):
+                        prev_phase = prev_action.get("phase_end")
+                        cur_phase = current_action.get("phase_start")
+                        if prev_phase in ACTION_PHASE_ORDER and cur_phase in ACTION_PHASE_ORDER:
+                            delta = ACTION_PHASE_ORDER[cur_phase] - ACTION_PHASE_ORDER[prev_phase]
+                            if delta < 0:
+                                error(
+                                    f"{sw}.action_state: phase_start {cur_phase!r} moves backward "
+                                    f"from previous phase_end {prev_phase!r}"
+                                )
+                            elif delta > 1:
+                                warn(
+                                    f"{sw}.action_state: action {current_action.get('action_id')!r} "
+                                    f"skips phases from {prev_phase!r} to {cur_phase!r}; "
+                                    "use a motivated_jump or add the missing action phase"
+                                )
 
                 speech_load, overlap = 0.0, False
                 for field in ("dialogue", "voiceover"):
@@ -404,13 +528,13 @@ def validate(data):
                     for li, line in enumerate(lines, 1):
                         lw = f"{sw}.{field}[{li}]"
                         if isinstance(line, str):
-                            if version in {"3.0", "3.2"}: warn(f"{lw}: use object with language/timing")
+                            if version in {"3.0", "3.2", "4.0"}: warn(f"{lw}: use object with language/timing")
                             continue
                         if not isinstance(line, dict):
                             error(f"{lw}: expected object or string")
                             continue
                         lang = line.get("language")
-                        if version in {"3.0", "3.2"} and not lang: warn(f"{lw}: missing language")
+                        if version in {"3.0", "3.2", "4.0"} and not lang: warn(f"{lw}: missing language")
                         elif dialogue_lang and lang and str(lang) != str(dialogue_lang):
                             warn(f"{lw}: language differs from project.dialogue_language")
                         source = line.get("timing_source")
@@ -479,6 +603,7 @@ def validate(data):
                                     f"does not continue previous {prev_key}={prev_value!r}"
                                 )
                 previous_combat_context = combat_context if isinstance(combat_context, dict) else None
+                previous_shot = shot
                 previous_id = sid
 
             memberships = defaultdict(list)
@@ -488,7 +613,7 @@ def validate(data):
                 if not isinstance(seg, dict):
                     error(f"{gw}: expected object"); continue
                 uid(seg.get("id"), gw)
-                if version in {"3.0", "3.2"} and "shots" in seg:
+                if version in {"3.0", "3.2", "4.0"} and "shots" in seg:
                     error(f"{gw}: v3 forbids embedded segment.shots; use scene.shots + segment.shot_ids")
                 ids = seg.get("shot_ids") or []
                 if not isinstance(ids, list): error(f"{gw}.shot_ids: expected list"); ids = []
