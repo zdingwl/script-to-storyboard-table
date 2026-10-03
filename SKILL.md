@@ -1,32 +1,36 @@
 ---
 name: script-to-storyboard-table
-description: 将剧本、对白稿、小说改编稿、导演计划或已有分镜转换、检查并修复为可拍、可剪、可供 AI 视频流水线读取的结构化分镜表。用于剧本转分镜、shot list、短剧/漫剧拆镜、导演预规划、Sequence Type Router、各种场型专用 Sequence Plan、战斗/动作场 Combat Plan、Beat→Shot 可追溯拆解、镜头时长与跨语言对白重算、人物调度、首尾状态、跨镜衔接、Generation Segment、连续性诊断，以及 MiniMax H3 等下游视频模型交接。默认忠实于原剧情；不负责擅自改剧情、生成最终视频 Prompt、图片或视频。
+description: 将剧本、对白稿、小说改编稿、导演计划或已有分镜转换、检查并修复为可拍、可剪、可供 AI 视频流水线读取的结构化分镜表。用于剧本锁定后的导演预演：Script Lock、Sequence Type Router、各种场型专用 Sequence Plan、Visual Bible/Asset State 接口、Blocking、Coverage、Storyboard、Animatic/Previs Gate、Shot Production Packet、连续性诊断，以及 MiniMax H3 等下游视频模型交接。默认忠实于原剧情；不负责擅自改剧情、生成最终视频 Prompt、图片或视频。
 compatibility: Portable Agent Skill. Works in ChatGPT/Codex/Claude-style agents that can read SKILL.md and local resources. Validator uses Python 3 standard library only.
 metadata:
   author: zdingwl
-  version: "3.2.0"
+  version: "3.3.0"
   updated: "2026-10-03"
 ---
 
-# 剧本转分镜表 v3
+# AI Director & Cinematic Previsualization v3.3
 
 把“文学/剧本语言”编译成“导演、剪辑、关键帧和 AI 视频生成都能继续执行的镜头数据”。
 
 核心原则：
 
 ```text
-剧情事实
+Script Lock / Story Contract
 → Sequence Type Router
-→ 导演预规划
-→ Type-specific Sequence Plan
-→ Combat Plan（战斗场）
-→ Beat
+→ Director Plan
+→ Type-specific Sequence Plan / Combat Plan
+→ Visual Bible Contract
+→ Asset State Matrix
+→ Geography / Blocking
+→ Beat / Coverage
 → Atomic Shot
 → Continuity Handoff
-→ Timing
-→ Generation Segment（需要时）
-→ Audit
+→ Storyboard
+→ Animatic / Previs Gate
+→ AI Video Shot Production Packet
 ```
+
+最终 AI Video Generation / Assembly Edit / Sound / VFX / Color 属于下游生产，不由本 Skill 直接执行。
 
 不要直接从一段剧本文字跳到一张看似完整的镜头表。单镜正确但相邻镜无法连接，仍然是不合格分镜。
 
@@ -35,28 +39,31 @@ metadata:
 ### 本 Skill 负责
 
 - 解析 Scene、人物、地点、时间、道具、对白、旁白、声音和已知资产。
-- 若没有上游导演计划，先做**导演预规划**，明确场次职责、转折、blocking、轴线、coverage 和节奏。
+- 先建立或读取 **Script Lock / Story Contract**，冻结必须保留的剧情事实。
+- 若没有上游导演计划，先做**导演预规划**，明确 POV、信息控制、情绪曲线、权力变化、geography、blocking、镜头/灯光/剪辑/声音策略。
 - 将原稿拆成可追溯 Narrative Beats。
 - 将 Beat 编译为可拍、可剪、可生成的 Atomic Shots。
 - 为每镜记录 `start_state → action → end_state`。
 - 为相邻镜记录 `handoff_from_previous`，明确为什么这里能切。
 - 规划 shot duration、累计时间码和对白容量。
 - 当目标语言发生变化时，按目标文本/目标音频**重新计算对白时长**，禁止沿用源语言时长。
+- 读取或声明 Visual Bible 锁定项，并通过 Asset State Matrix 维护人物、服装、伤势、湿度、道具、场景损坏、时间等连续状态。
 - 维护人物、道具、动作、空间、视线、光线、声音和屏幕方向连续性。
 - 需要 AI 视频生产时，将连续 shots 分组为 Generation Segments。
 - 输出 Markdown 分镜表；需要机器接力时同时输出 `storyboard.json`。
+- 在 cinematic previs 工作流中输出 `animatic-plan.json` / `previs-report.md` 规划，并在通过 Previs Gate 后生成模型无关的 Shot Production Packets。
 - 运行确定性 validator，并报告 error / warning。
 
 ### 本 Skill 不负责
 
 - 未经授权改剧情因果、角色决定、核心台词事实、结局或反转。
 - 为缺失设定凭空发明角色外观、服装、世界观或资产细节。
-- 生成角色图、场景图、分镜图或视频。
-- 编写 MiniMax H3 / Seedance / Kling / Veo 等最终模型 Prompt。
+- 直接生成角色资产、场景资产或最终视频；它只定义视觉/资产/镜头需求与交接合同。
+- 直接承担 MiniMax H3 / Seedance / Kling / Veo 的最终 Prompt 编译；Shot Packet 由下游模型专用 Skill 编译。
 - 用“电影感、高级感、宿命感”替代具体镜头设计。
 - 为了满足模型时长限制，把不连续的剧情硬塞进同一个 Segment。
 
-如果用户只要求“剧本转分镜表”，不要自动扩展成整套视频生产。
+如果用户只要求“剧本转分镜表”，可以使用轻量 storyboard 流程；用户要求电影工业感、导演规划、previs、整套视频前期时，使用 cinematic_previs 工作流。
 
 ## 1. 默认模式
 
@@ -69,6 +76,13 @@ metadata:
 
 未指定时使用 `faithful`，无需追问。
 
+### 工作流 Profile
+
+- `storyboard`：Director / Sequence / Shot / Continuity 的轻量分镜流程。
+- `cinematic_previs`：增加 Script Lock、Visual Bible Contract、Asset State Matrix、Animatic/Previs Gate 和 Shot Production Packet。
+
+当用户明确追求“电影工业感、previs、正式 AI 视频生产、整套导演系统”时，优先使用 `cinematic_previs`。
+
 ## 2. 按需读取
 
 ### 正常剧本转分镜
@@ -78,6 +92,18 @@ metadata:
 1. `references/sequence-router.md`
 2. `references/director-plan.md`
 3. `references/storyboard-method.md`
+
+### cinematic_previs 工作流
+
+额外读取：
+
+- `references/previs-pipeline.md`
+- `references/script-lock-contract.md`
+- `references/visual-bible-contract.md`
+- `references/asset-state-matrix.md`
+- `references/animatic-previs.md`
+- `references/shot-production-packet.md`
+- 需要粗剪反馈时读取 `references/post-generation-loop.md`
 
 Router 根据 `sequence_type` 按需读取：
 
@@ -156,6 +182,21 @@ python scripts/validate_storyboard.py storyboard.json --strict
 ```
 
 后层不得覆盖前层。
+
+## 3.5 Script Lock / Story Contract
+
+进入导演规划前，先确认每个 Scene：
+
+- objective；
+- obstacle；
+- escalation；
+- information release；
+- emotional start/end；
+- irreversible change；
+- must-preserve facts；
+- authorized flex。
+
+上游剧本已经批准时只抽取，不改写。完整结构见 `references/script-lock-contract.md`。
 
 ## 4. 必须先做 Sequence Type Router
 
@@ -471,7 +512,36 @@ previous.end_state
 
 本 Skill 可以调整镜头呈现，但在 `faithful` 模式下不能凭空增加悬念事实。
 
-## 14. Asset 使用
+## 14. Visual Bible 与 Asset State
+
+### Visual Bible
+
+项目已有 Visual Bible / Lookbook 时读取并传播其锁定项，不在每个 Shot 重新发明风格。
+
+Shot 层只记录必要 intent：
+
+- lens intent；
+- lighting intent；
+- composition intent；
+- visual exception。
+
+没有 Visual Bible 时可输出 `visual_bible_requirements`，但不在 faithful 模式凭空决定完整美术风格。
+
+详见 `references/visual-bible-contract.md`。
+
+### Asset State Matrix
+
+连续性必须从 base identity 升级为：
+
+```text
+Character × Costume × Physical State × Location × Prop × Time × Damage
+```
+
+Shot 优先引用状态 ID，例如 `C01-ST02`、`S01-ST03`，而不是只写 C01 / S01。
+
+详见 `references/asset-state-matrix.md`。
+
+## 15. Asset 使用
 
 有资产清单时使用稳定 ID：
 
@@ -490,7 +560,7 @@ P01 道具
 - 不替资产 Skill 发明具体脸、服装、材质、色彩设计；
 - 用 `pending` 标记待绑定项。
 
-## 15. Generation Segment
+## 16. Generation Segment
 
 只有下游需要“一次 AI 视频生成任务”时使用。
 
@@ -514,7 +584,7 @@ Segment 规则：
 
 Segment 内模型时间线从 `shot_ids + duration_seconds` **派生**，不维护第二份手写 cut 时间码。
 
-## 16. 时间码唯一语义
+## 17. 时间码唯一语义
 
 v3 中：
 
@@ -524,7 +594,7 @@ v3 中：
 
 这样可避免“分镜表显示 00:32，但 H3 Prompt 需要 0.00 秒起算”的歧义。
 
-## 17. 标准输出
+## 18. 标准输出
 
 默认 Markdown 主表至少包含：
 
@@ -552,7 +622,7 @@ v3 中：
 
 模板见 `assets/storyboard-template.md`。
 
-## 18. 机器 JSON
+## 19. 机器 JSON
 
 需要下游自动化时输出 `storyboard.json`。
 
@@ -567,7 +637,7 @@ v3 规则：
 
 完整字段见 `references/schema.md`。
 
-## 19. 增量修改
+## 20. 增量修改
 
 用户说“只改第 6、7 镜”时：
 
@@ -579,7 +649,7 @@ v3 规则：
 6. 不偷偷优化其他镜；
 7. 重新计算受影响后的时间码、Scene runtime 和 Segment runtime。
 
-## 20. 交付前质量门
+## 21. 交付前质量门
 
 ### A. 剧情保真
 
@@ -642,13 +712,74 @@ v3 规则：
 - 复杂多人/小道具/口型/运镜没有同镜过载；
 - 高风险镜头有 fallback。
 
-### G. Hook（若适用）
+### G. Previs Readiness（cinematic_previs）
+
+- Script Lock / Story Contract 已明确；
+- Visual Bible 已 locked 或明确 pending；
+- Asset State Matrix 足够覆盖本次 Shots；
+- Geography / Blocking 可读；
+- Storyboard Continuity Audit 通过；
+- Animatic/Previs 没有 blocking issue；
+- Shot Production Packet 可由 canonical data 派生。
+
+### H. Hook（若适用）
 
 - 钩子来自原剧情或授权；
 - 没把“已经给出结果”误当“未决问题”；
 - 最后一镜没有提前把下一拍的信息泄完。
 
-## 21. Validator
+## 22. Animatic / Previs Gate
+
+cinematic_previs 工作流中，Storyboard 完成后不要直接进入正式视频生成。
+
+先按 Shot duration 生成 Animatic / Previs timeline 计划，至少包含：
+
+- storyboard panel；
+- 临时对白/TTS；
+- ambience / SFX；
+- temp music（需要时）；
+- 简单 camera preview；
+- transition；
+- black frame / subtitle placeholder。
+
+检查：
+
+- 不看剧本能否理解动作和空间；
+- dialogue / reaction timing 是否成立；
+- sequence rhythm 是否成立；
+- missing shot 是否暴露；
+- asset state / screen direction 是否跳变；
+- hook/reveal 是否在正确时间发生。
+
+`previs_gate.status != pass` 时返回上游修镜头，不建议开始正式逐镜生成。
+
+详见 `references/animatic-previs.md`。
+
+## 23. AI Video Shot Production Packet
+
+Previs Gate 通过后，每个正式生成 Shot 编译为模型无关 Packet：
+
+- references；
+- character / costume / environment / prop states；
+- start / end state；
+- action / blocking；
+- character movement；
+- camera position；
+- shot size / angle / lens intent / movement；
+- foreground / midground / background；
+- duration；
+- dialogue / sound；
+- continuity from / into；
+- visual bible reference；
+- do-not-change；
+- generation constraints；
+- risk / fallback。
+
+H3/Kling/Veo 专用 Skill 再把 Packet 编译成各模型 Prompt。
+
+详见 `references/shot-production-packet.md`。
+
+## 22. Validator
 
 生成 JSON 后运行：
 
@@ -674,16 +805,20 @@ python scripts/validate_storyboard.py storyboard.json
 
 修复 error；warning 可以保留，但在交付摘要解释。
 
-## 22. 最终交付顺序
+## 24. 最终交付顺序
 
-1. 分镜摘要：场次、镜数、总时长、Segment 数。
+1. Script Lock / Story Contract 摘要。
 2. Sequence Type / Director Plan 摘要。
 3. Type-specific Sequence Plan / Combat Plan 摘要。
-4. 角色/场景/道具索引或待绑定资产。
-5. Beat 清单。
-6. 完整分镜表。
-7. 节奏/钩子节点。
-8. 连续性、对白时长、战斗连续性和高风险说明。
-9. 若需要自动化：`storyboard.json` + validator 结果。
+4. Visual Bible reference / requirements。
+5. Asset State Matrix / 待绑定状态。
+6. 角色/场景/道具索引。
+7. Beat 清单。
+8. 完整分镜表。
+9. 节奏/钩子节点。
+10. 连续性、对白时长、场型状态和高风险说明。
+11. cinematic_previs 时：Animatic Plan + Previs Gate。
+12. 正式生成前：Shot Production Packets。
+13. 若需要自动化：`storyboard.json` + validator 结果。
 
 不要在结尾自动追加视频 Prompt；除非用户明确要求进入下一阶段。
