@@ -1,6 +1,6 @@
 # Animatic / Previs Gate
 
-Storyboard 是静态决策；Animatic / Previs 是把这些决策放进时间里验证。
+Approved Storyboard 是静态决策；Animatic / Previs 是把这些已经通过 Continuity Audit 的决策放进时间里验证。Draft Storyboard 不直接进入本阶段。
 
 StudioBinder 将 animatic 描述为 storyboard images 按时间剪接并加入 sound/dialogue/motion，用来测试 sequence 如何流动；动画与复杂动作/VFX 场景尤其适合在最终高成本制作前完成这一验证。
 
@@ -68,6 +68,8 @@ StudioBinder 将 animatic 描述为 storyboard images 按时间剪接并加入 s
 
 ### Continuity
 
+- state_inheritance 是否在实际时间线上仍然成立；
+- 同一 action_id 的动作 phase 是否自然继续；
 - end/start 是否自然；
 - asset states 是否连续；
 - screen direction 是否成立；
@@ -92,7 +94,7 @@ StudioBinder 将 animatic 描述为 storyboard images 按时间剪接并加入 s
 }
 ```
 
-只有 `pass` 才建议进入正式逐镜生成。
+只有 `pass` 才建议进入正式逐镜生成。Gate 的完整 blocker / major / minor 与修复循环见 `references/previs-validation.md`。
 
 ## 6. Animatic 的价值
 
