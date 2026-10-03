@@ -19,6 +19,17 @@ TIMING_SOURCES = {
     "measured_audio", "measured_tts", "scripted", "estimated_target_text",
     "estimated", "inherited_source",
 }
+COMBAT_TYPES = {
+    "engage", "pressure", "reversal", "disarm_or_prop_change",
+    "environment_shift", "separation", "reengage", "escalation",
+    "save_or_interrupt", "finish", "aftermath",
+}
+COMBAT_RANGES = {"far", "mid", "close", "grapple"}
+COMBAT_PHASES = {
+    "read_or_intent", "approach", "attack_attempt", "evade_or_block",
+    "impact_or_near_impact", "reaction", "recovery_or_reposition",
+    "aftermath",
+}
 H3_RULES_VERIFIED_AT = "2026-10-03"
 H3 = {
     "min": 4.0, "max": 15.0, "images": 9, "videos": 3, "audios": 3,
@@ -113,6 +124,11 @@ def validate(data):
             scene_id = scene.get("id")
             uid(scene_id, scw)
 
+            is_combat = False
+            combat_ids = set()
+            combat_zones = set()
+            combat_beats_data = []
+
             if version == "3.0":
                 plan = scene.get("director_plan")
                 if not isinstance(plan, dict):
@@ -122,6 +138,72 @@ def validate(data):
                         if not plan.get(key): warn(f"{scw}.director_plan: missing {key}")
                     if not plan.get("coverage_obligations"):
                         warn(f"{scw}.director_plan: no coverage_obligations")
+                    is_combat = plan.get("sequence_type") == "combat"
+
+                if is_combat:
+                    combat = scene.get("combat_plan")
+                    if not isinstance(combat, dict):
+                        error(f"{scw}: sequence_type=combat requires combat_plan")
+                    else:
+                        if not combat.get("combat_goal"):
+                            error(f"{scw}.combat_plan: missing combat_goal")
+                        if not combat.get("participants"):
+                            warn(f"{scw}.combat_plan: no participants")
+                        arena = combat.get("arena") or {}
+                        zones = arena.get("zones") or [] if isinstance(arena, dict) else []
+                        local_zone_ids = []
+                        for zi, zone in enumerate(zones, 1):
+                            zw = f"{scw}.combat_plan.arena.zones[{zi}]"
+                            zid = zone.get("id") if isinstance(zone, dict) else zone
+                            if not zid:
+                                error(f"{zw}: missing zone id")
+                            else:
+                                zid = str(zid)
+                                if zid in local_zone_ids:
+                                    error(f"{zw}: duplicate local zone id {zid}")
+                                local_zone_ids.append(zid)
+                                combat_zones.add(zid)
+                        if not combat_zones:
+                            error(f"{scw}.combat_plan: arena.zones must not be empty")
+
+                        cbeats = combat.get("combat_beats") or []
+                        if not isinstance(cbeats, list) or not cbeats:
+                            error(f"{scw}.combat_plan: combat_beats must be a non-empty list")
+                            cbeats = []
+                        has_aftermath = False
+                        for ci, cbeat in enumerate(cbeats, 1):
+                            cw = f"{scw}.combat_plan.combat_beats[{ci}]"
+                            if not isinstance(cbeat, dict):
+                                error(f"{cw}: expected object")
+                                continue
+                            cbid = cbeat.get("id")
+                            uid(cbid, cw)
+                            if cbid:
+                                combat_ids.add(str(cbid))
+                            ctype = cbeat.get("type")
+                            if ctype not in COMBAT_TYPES:
+                                error(f"{cw}: unsupported combat beat type {ctype!r}")
+                            has_aftermath = has_aftermath or ctype == "aftermath"
+                            for key in ("range_before", "range_after"):
+                                value = cbeat.get(key)
+                                if value is not None and value not in COMBAT_RANGES:
+                                    error(f"{cw}.{key}: unsupported range {value!r}")
+                            for key in ("zone_before", "zone_after"):
+                                value = cbeat.get(key)
+                                if value is not None and combat_zones and str(value) not in combat_zones:
+                                    error(f"{cw}.{key}: unknown combat zone {value!r}")
+                            for key in ("advantage_before", "advantage_after"):
+                                if not cbeat.get(key):
+                                    warn(f"{cw}: missing {key}")
+                            if ctype != "aftermath" and not cbeat.get("visible_result"):
+                                warn(f"{cw}: missing visible_result")
+                            combat_beats_data.append((cw, cbeat))
+                        if not has_aftermath:
+                            warn(f"{scw}.combat_plan: no aftermath combat beat")
+                        if not combat.get("camera_strategy"):
+                            warn(f"{scw}.combat_plan: missing camera_strategy")
+                        if not combat.get("continuity_priorities"):
+                            warn(f"{scw}.combat_plan: no continuity_priorities")
 
             beats = scene.get("beats") or []
             beat_ids, beat_index, must = [], {}, set()
@@ -139,12 +221,19 @@ def validate(data):
                     if beat.get("must_preserve", True): must.add(bid)
             beat_set, coverage = set(beat_ids), Counter()
 
+            if is_combat:
+                for cw, cbeat in combat_beats_data:
+                    for bid in cbeat.get("source_beats") or []:
+                        if beat_set and str(bid) not in beat_set:
+                            error(f"{cw}: unknown source beat {bid}")
+
             shots = scene.get("shots") or []
             if not isinstance(shots, list):
                 error(f"{scw}.shots: expected list")
                 shots = []
             shot_by_id, shot_order = {}, []
             previous_id, previous_out = None, None
+            previous_combat_context = None
 
             for qi, shot in enumerate(shots, 1):
                 sw = f"{scw}.shots[{qi}]"
@@ -191,6 +280,30 @@ def validate(data):
                 if version == "3.0":
                     for key in ("purpose", "cut_reason"):
                         if not shot.get(key): warn(f"{sw}: missing {key}")
+
+                combat_context = shot.get("combat_context")
+                if is_combat and combat_context is not None:
+                    if not isinstance(combat_context, dict):
+                        error(f"{sw}.combat_context: expected object")
+                        combat_context = None
+                    else:
+                        cbids = combat_context.get("combat_beat_ids") or []
+                        if not cbids:
+                            warn(f"{sw}.combat_context: no combat_beat_ids")
+                        for cbid in map(str, cbids):
+                            if combat_ids and cbid not in combat_ids:
+                                error(f"{sw}.combat_context: unknown combat beat {cbid}")
+                        phase = combat_context.get("action_phase")
+                        if phase is not None and phase not in COMBAT_PHASES:
+                            error(f"{sw}.combat_context.action_phase: unsupported value {phase!r}")
+                        for key in ("range_start", "range_end"):
+                            value = combat_context.get(key)
+                            if value is not None and value not in COMBAT_RANGES:
+                                error(f"{sw}.combat_context.{key}: unsupported range {value!r}")
+                        for key in ("zone_start", "zone_end"):
+                            value = combat_context.get(key)
+                            if value is not None and combat_zones and str(value) not in combat_zones:
+                                error(f"{sw}.combat_context.{key}: unknown combat zone {value!r}")
 
                 handoff = shot.get("handoff_from_previous")
                 if qi > 1 and version == "3.0":
@@ -247,6 +360,24 @@ def validate(data):
                         for aid in refs.get(kind) or []:
                             if asset_ids[kind] and str(aid) not in asset_ids[kind]:
                                 error(f"{sw}: unknown {kind[:-1]} asset {aid}")
+                if is_combat and isinstance(combat_context, dict) and isinstance(previous_combat_context, dict):
+                    handoff_type = (handoff or {}).get("type") if isinstance(handoff, dict) else None
+                    allow_jump = handoff_type in {"motivated_jump", "time_jump", "scene_cut"}
+                    if not allow_jump:
+                        pairs = (
+                            ("zone_end", "zone_start"),
+                            ("range_end", "range_start"),
+                            ("advantage_end", "advantage_start"),
+                        )
+                        for prev_key, cur_key in pairs:
+                            prev_value = previous_combat_context.get(prev_key)
+                            cur_value = combat_context.get(cur_key)
+                            if prev_value is not None and cur_value is not None and str(prev_value) != str(cur_value):
+                                error(
+                                    f"{sw}.combat_context: {cur_key}={cur_value!r} "
+                                    f"does not continue previous {prev_key}={prev_value!r}"
+                                )
+                previous_combat_context = combat_context if isinstance(combat_context, dict) else None
                 previous_id = sid
 
             memberships = defaultdict(list)
@@ -273,6 +404,19 @@ def validate(data):
                 declared = number(seg.get("duration_seconds"))
                 if ids and declared is not None and not close(declared, total):
                     error(f"{gw}: duration_seconds={declared:g} but referenced shots sum to {total:g}")
+
+                if is_combat:
+                    segment_combat_beats = set()
+                    for sid in map(str, ids):
+                        shot = shot_by_id.get(sid) or {}
+                        context = shot.get("combat_context") or {}
+                        if isinstance(context, dict):
+                            segment_combat_beats.update(map(str, context.get("combat_beat_ids") or []))
+                    if len(segment_combat_beats) > 2:
+                        warn(
+                            f"{gw}: combat segment spans {len(segment_combat_beats)} combat beats; "
+                            "review AI generation complexity"
+                        )
 
                 model = str(seg.get("target_model") or project_model)
                 if "minimax" in model.lower() and "h3" in model.lower():
