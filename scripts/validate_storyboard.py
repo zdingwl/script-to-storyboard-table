@@ -336,7 +336,7 @@ def validate(data):
 
                 for key in ("start_state", "end_state", "shot_size", "camera_movement"):
                     if not shot.get(key): warn(f"{sw}: missing {key}")
-                if version == "3.0":
+                if version in {"3.0", "3.2"}:
                     for key in ("purpose", "cut_reason"):
                         if not shot.get(key): warn(f"{sw}: missing {key}")
 
@@ -384,7 +384,7 @@ def validate(data):
                                 error(f"{sw}.combat_context.{key}: unknown combat zone {value!r}")
 
                 handoff = shot.get("handoff_from_previous")
-                if qi > 1 and version == "3.0":
+                if qi > 1 and version in {"3.0", "3.2"}:
                     if not isinstance(handoff, dict):
                         warn(f"{sw}: missing handoff_from_previous")
                     else:
@@ -404,13 +404,13 @@ def validate(data):
                     for li, line in enumerate(lines, 1):
                         lw = f"{sw}.{field}[{li}]"
                         if isinstance(line, str):
-                            if version == "3.0": warn(f"{lw}: use object with language/timing")
+                            if version in {"3.0", "3.2"}: warn(f"{lw}: use object with language/timing")
                             continue
                         if not isinstance(line, dict):
                             error(f"{lw}: expected object or string")
                             continue
                         lang = line.get("language")
-                        if version == "3.0" and not lang: warn(f"{lw}: missing language")
+                        if version in {"3.0", "3.2"} and not lang: warn(f"{lw}: missing language")
                         elif dialogue_lang and lang and str(lang) != str(dialogue_lang):
                             warn(f"{lw}: language differs from project.dialogue_language")
                         source = line.get("timing_source")
@@ -488,7 +488,7 @@ def validate(data):
                 if not isinstance(seg, dict):
                     error(f"{gw}: expected object"); continue
                 uid(seg.get("id"), gw)
-                if version == "3.0" and "shots" in seg:
+                if version in {"3.0", "3.2"} and "shots" in seg:
                     error(f"{gw}: v3 forbids embedded segment.shots; use scene.shots + segment.shot_ids")
                 ids = seg.get("shot_ids") or []
                 if not isinstance(ids, list): error(f"{gw}.shot_ids: expected list"); ids = []
