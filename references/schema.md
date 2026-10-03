@@ -1,8 +1,19 @@
-# Storyboard Data Contract v3.2
+# Storyboard Data Contract v4.0
 
 Markdown 给人评审，`storyboard.json` 给下游 Skill/自动化读取。两者必须来自同一份事实。
 
-v3 的最重要变化：
+v4 保留 v3 的单一事实源，并新增“机器可验证的跨镜连续性”。
+
+v4 的关键变化：
+
+1. `start_state / end_state` 在 v4 中使用嵌套对象表达动态连续状态；
+2. 连续 Handoff 使用 `state_inheritance` 声明必须从上一镜尾状态继承的 dot paths；
+3. 跨镜连续动作可用 `action_state` 记录稳定 `action_id` 与 phase；
+4. validator 可直接检查 `previous.end_state[path] == current.start_state[path]`；
+5. Draft Storyboard 必须经过 Continuity Audit / Repair 后再进入 Previs Gate；
+6. v4 仍坚持 Scene.shots 是唯一 Shot 事实源。
+
+v3 已建立的基础继续保留：
 
 1. `scene.shots` 是 Shot 唯一事实源；
 2. `generation_segments[].shot_ids` 只引用 Shot，不再复制完整 Shot；
@@ -36,7 +47,7 @@ Prop: P01
 
 ```json
 {
-  "schema_version": "3.2",
+  "schema_version": "4.0",
   "project": {
     "title": "项目名",
     "aspect_ratio": "9:16",
@@ -404,12 +415,49 @@ v3.2 核心枚举：
     "P01 remains in C01 right hand"
   ],
   "start_state": {
-    "C01": "画面外，仅右手进入画面",
-    "P01": "正面朝上"
+    "characters": {
+      "C01": {
+        "zone": "table-left",
+        "body_position": "standing",
+        "gaze_target": "P01"
+      }
+    },
+    "props": {
+      "P01": {
+        "holder": "C01",
+        "hand": "right",
+        "orientation": "front-up"
+      }
+    },
+    "environment": {
+      "location": "S01",
+      "time": "night"
+    }
   },
   "end_state": {
-    "C01": "右手停住",
-    "P01": "背面朝上，刻印可见"
+    "characters": {
+      "C01": {
+        "zone": "table-left",
+        "body_position": "standing",
+        "gaze_target": "P01"
+      }
+    },
+    "props": {
+      "P01": {
+        "holder": "C01",
+        "hand": "right",
+        "orientation": "back-up"
+      }
+    },
+    "environment": {
+      "location": "S01",
+      "time": "night"
+    }
+  },
+  "action_state": {
+    "action_id": "ACT-P01-FLIP",
+    "phase_start": "execution",
+    "phase_end": "result"
   },
   "handoff_from_previous": null,
   "continuity_notes": "下一镜保持 C01 视线向下",
@@ -423,6 +471,8 @@ v3.2 核心枚举：
 ```
 
 第一镜 `handoff_from_previous` 可为 `null`。
+
+v4 的 `start_state / end_state` 只记录**会随剧情变化且下游需要继承的状态**。固定脸型、发型、服装设计等仍由 Visual Bible / Asset Registry 管理，不在每镜重复。
 
 ### 7.1 Shot 时间码
 
@@ -484,15 +534,45 @@ timecode_out - timecode_in = duration_seconds
 
 不要把现实伤害技巧写入数据；这里追踪的是银幕动作状态。
 
+### 7.2 Action State（v4）
+
+只有需要追踪连续物理动作时使用：
+
+```json
+{
+  "action_state": {
+    "action_id": "ACT-RAIL-PUSH-01",
+    "phase_start": "contact",
+    "phase_end": "execution"
+  }
+}
+```
+
+通用 phase：
+
+```text
+prepare → approach → contact → execution → result → reaction → recovery → aftermath
+```
+
+同一 `action_id` 跨镜时 phase 不应倒退；`match_on_action` 必须继续同一个 action_id。
+
 ## 8. Handoff
 
-除 Scene 第一镜外推荐必填：
+除 Scene 第一镜外必填。v4 的连续切镜还必须声明需要继承的状态路径：
 
 ```json
 {
   "from_shot_id": "E01-S01-001",
   "type": "reaction",
-  "reason": "证据出现后切到 C01 的认知反应"
+  "reason": "证据出现后切到 C01 的认知反应",
+  "state_inheritance": [
+    "characters.C01.zone",
+    "characters.C01.body_position",
+    "props.P01.holder",
+    "props.P01.hand",
+    "props.P01.orientation",
+    "environment.location"
+  ]
 }
 ```
 
@@ -509,6 +589,28 @@ timecode_out - timecode_in = duration_seconds
 - `motivated_jump`
 - `time_jump`
 - `scene_cut`
+
+### 8.1 state_inheritance（v4）
+
+对于 `direct / match_on_action / eyeline / reaction / insert / insert_return / sound_bridge / reframe` 等连续切镜：
+
+- `state_inheritance` 必须是非空 dot-path 数组；
+- 每个路径必须同时存在于上一镜 `end_state` 与当前镜 `start_state`；
+- 对应值必须相同；
+- 只列真正需要继承的动态状态，避免把所有资产字段都复制进 Shot。
+
+以下类型允许不做完整继承：
+
+- `motivated_jump`
+- `time_jump`
+- `scene_cut`
+
+但 `reason` 仍必须解释不连续为什么成立。
+
+完整规则见：
+
+- `references/continuity-audit.md`
+- `references/ai-video-shot-transition.md`
 
 ## 9. Dialogue
 
@@ -722,12 +824,13 @@ Shot：
 | 画面与构图 | `composition` |
 | 人物/调度 | `characters` + `blocking` |
 | 动作/表演 | `action` + `performance` |
+| 连续动作状态 | `action_state` |
 | 台词/旁白 | `dialogue` + `voiceover` |
 | 声音 | `sound` |
 | 资产 | `assets` |
 | 首帧 | `start_state` |
 | 尾帧 | `end_state` |
-| 衔接合同 | `handoff_from_previous` |
+| 衔接合同 | `handoff_from_previous` + `state_inheritance` |
 | 连续性/风险 | `continuity_notes` + `risk` |
 
 ## 18. Runtime
@@ -765,7 +868,21 @@ timing_estimate_seconds
 timing_seconds + timing_source
 ```
 
-## 19.1 Cinematic Previs Derived Artifacts
+## 19.1 v3.3 → v4.0
+
+迁移见 `references/migration-v3.3-v4.0.md`。
+
+核心迁移只有三步：
+
+```text
+结构化 start_state / end_state
+→ 为连续 Handoff 增加 state_inheritance
+→ 为跨镜物理动作按需增加 action_state
+```
+
+不要求重做已批准剧情、Director Plan、Sequence Plan 或 Combat Plan。
+
+## 19.2 Cinematic Previs Derived Artifacts
 
 以下属于 **derived artifacts**，不作为第二套剧情事实源：
 
