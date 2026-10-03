@@ -1,9 +1,9 @@
 {
-  "schema_version": "3.0",
+  "schema_version": "3.2",
   "project": {
     "title": "证据",
     "aspect_ratio": "9:16",
-    "target_runtime_seconds": 8.0,
+    "target_runtime_seconds": 8,
     "runtime_lock": true,
     "mode": "faithful",
     "source_language": "zh-CN",
@@ -21,7 +21,10 @@
         "id": "C01",
         "name": "阿丽娅",
         "reference": "assets/characters/c01.png",
-        "locked_traits": ["固定发型", "固定服装"],
+        "locked_traits": [
+          "固定发型",
+          "固定服装"
+        ],
         "status": "approved"
       }
     ],
@@ -30,7 +33,10 @@
         "id": "S01",
         "name": "仪式大厅",
         "reference": "assets/scenes/s01.png",
-        "locked_traits": ["长桌位于中央", "门在画面右后方"],
+        "locked_traits": [
+          "长桌位于中央",
+          "门在画面右后方"
+        ],
         "status": "approved"
       }
     ],
@@ -39,7 +45,9 @@
         "id": "P01",
         "name": "徽章",
         "reference": "assets/props/p01.png",
-        "locked_traits": ["背面有家族刻印"],
+        "locked_traits": [
+          "背面有家族刻印"
+        ],
         "status": "approved"
       }
     ]
@@ -48,7 +56,7 @@
     {
       "id": "E01",
       "title": "第一集",
-      "target_runtime_seconds": 8.0,
+      "target_runtime_seconds": 8,
       "runtime_lock": true,
       "hook_audit": {
         "opening": {
@@ -66,8 +74,12 @@
           "id": "E01-S01",
           "slugline": "INT. 仪式大厅 - NIGHT",
           "location_asset": "S01",
-          "characters": ["C01"],
-          "props": ["P01"],
+          "characters": [
+            "C01"
+          ],
+          "props": [
+            "P01"
+          ],
           "entry_state": {
             "C01": "站在长桌左侧，右手持 P01 正面朝上",
             "P01": "正面朝上"
@@ -88,7 +100,9 @@
               "明确 C01 的视线目标在画外右侧"
             ],
             "pacing": "neutral",
-            "hook_role": "setup"
+            "hook_role": "setup",
+            "sequence_type": "investigation_reveal",
+            "secondary_sequence_types": []
           },
           "beats": [
             {
@@ -96,8 +110,12 @@
               "type": "information",
               "source_text": "她翻过徽章，看见背面的家族刻印。",
               "event": "C01 发现 P01 背面的家族刻印。",
-              "characters": ["C01"],
-              "props": ["P01"],
+              "characters": [
+                "C01"
+              ],
+              "props": [
+                "P01"
+              ],
               "dialogue": null,
               "must_preserve": true
             },
@@ -106,8 +124,12 @@
               "type": "reaction",
               "source_text": "她抬眼，低声说：‘你早就知道。’",
               "event": "C01 将证据与画外对象联系起来并发出质问。",
-              "characters": ["C01"],
-              "props": ["P01"],
+              "characters": [
+                "C01"
+              ],
+              "props": [
+                "P01"
+              ],
               "dialogue": "你早就知道。",
               "must_preserve": true
             }
@@ -117,28 +139,39 @@
               "id": "E01-S01-001",
               "scene_id": "E01-S01",
               "order": 1,
-              "source_beats": ["E01-S01-B01"],
+              "source_beats": [
+                "E01-S01-B01"
+              ],
               "purpose": "让观众清楚读到刻印并理解证据被发现。",
               "director_obligation": "看清 P01 背面刻印",
               "cut_reason": "证据尺寸小，需要独立近景。",
-              "timecode_in": 0.0,
-              "timecode_out": 3.0,
-              "duration_seconds": 3.0,
+              "timecode_in": 0,
+              "timecode_out": 3,
+              "duration_seconds": 3,
               "shot_size": "close-up",
               "angle": "eye-level",
               "camera_movement": "static",
               "composition": "P01 位于中央前景，C01 右手从画面左侧进入。",
-              "characters": ["C01"],
+              "characters": [
+                "C01"
+              ],
               "blocking": "C01 右手将 P01 从正面翻到背面。",
               "action": "刻印完全露出后，C01 的手指停住。",
               "performance": "动作由流畅转为短暂停顿。",
               "dialogue": [],
               "voiceover": [],
-              "sound": ["金属轻擦声", "低而持续的室内环境声"],
+              "sound": [
+                "金属轻擦声",
+                "低而持续的室内环境声"
+              ],
               "assets": {
                 "scene": "S01",
-                "characters": ["C01"],
-                "props": ["P01"]
+                "characters": [
+                  "C01"
+                ],
+                "props": [
+                  "P01"
+                ]
               },
               "start_state": {
                 "C01": "画面外，仅右手进入画面",
@@ -155,24 +188,44 @@
                 "reasons": [],
                 "fallback": null
               },
-              "status": "planned"
+              "status": "planned",
+              "sequence_context": {
+                "sequence_beat_ids": [
+                  "E01-S01-SQ01"
+                ],
+                "state_start": {
+                  "evidence_state": "hidden",
+                  "knowledge_state": "checking",
+                  "gaze_target": "P01"
+                },
+                "state_end": {
+                  "evidence_state": "visible",
+                  "knowledge_state": "confirmed",
+                  "gaze_target": "P01"
+                },
+                "attention_target": "P01"
+              }
             },
             {
               "id": "E01-S01-002",
               "scene_id": "E01-S01",
               "order": 2,
-              "source_beats": ["E01-S01-B02"],
+              "source_beats": [
+                "E01-S01-B02"
+              ],
               "purpose": "把证据信息转化为人物怀疑，并建立未回答的问题。",
               "director_obligation": "保留 C01 发现证据后的反应",
               "cut_reason": "信息重点从 P01 转到 C01 的认知与质问。",
-              "timecode_in": 3.0,
-              "timecode_out": 8.0,
-              "duration_seconds": 5.0,
+              "timecode_in": 3,
+              "timecode_out": 8,
+              "duration_seconds": 5,
               "shot_size": "medium-close",
               "angle": "eye-level",
               "camera_movement": "static",
               "composition": "C01 位于画面左侧，视线指向画外右侧；P01 保持在下方前景。",
-              "characters": ["C01"],
+              "characters": [
+                "C01"
+              ],
               "blocking": "C01 先低头看 P01，再抬眼看向画外右侧。",
               "action": "C01 抬眼后停住，低声质问。",
               "performance": "从确认事实转为压低情绪的警觉。",
@@ -187,11 +240,17 @@
                 }
               ],
               "voiceover": [],
-              "sound": ["室内环境声延续"],
+              "sound": [
+                "室内环境声延续"
+              ],
               "assets": {
                 "scene": "S01",
-                "characters": ["C01"],
-                "props": ["P01"]
+                "characters": [
+                  "C01"
+                ],
+                "props": [
+                  "P01"
+                ]
               },
               "start_state": {
                 "C01": "长桌左侧，低头看 P01",
@@ -212,7 +271,23 @@
                 "reasons": [],
                 "fallback": null
               },
-              "status": "planned"
+              "status": "planned",
+              "sequence_context": {
+                "sequence_beat_ids": [
+                  "E01-S01-SQ02"
+                ],
+                "state_start": {
+                  "evidence_state": "visible",
+                  "knowledge_state": "confirmed",
+                  "gaze_target": "P01"
+                },
+                "state_end": {
+                  "evidence_state": "visible",
+                  "knowledge_state": "suspicious",
+                  "gaze_target": "offscreen-right"
+                },
+                "attention_target": "C01"
+              }
             }
           ],
           "generation_segments": [
@@ -221,8 +296,11 @@
               "scene_id": "E01-S01",
               "target_model": "MiniMax H3",
               "generation_mode": "Ref2VA",
-              "duration_seconds": 8.0,
-              "shot_ids": ["E01-S01-001", "E01-S01-002"],
+              "duration_seconds": 8,
+              "shot_ids": [
+                "E01-S01-001",
+                "E01-S01-002"
+              ],
               "reference_assets": [
                 {
                   "label": "Picture 1",
@@ -241,7 +319,51 @@
                 }
               ]
             }
-          ]
+          ],
+          "sequence_plan": {
+            "profile": "investigation_reveal",
+            "sequence_goal": "让观众确认 P01 是关键证据，并把信息转成 C01 对画外对象的怀疑。",
+            "audience_question": "P01 是否证明有人隐瞒事实？",
+            "sequence_beats": [
+              {
+                "id": "E01-S01-SQ01",
+                "type": "evidence_found",
+                "purpose": "让关键证据可读",
+                "source_beats": [
+                  "E01-S01-B01"
+                ],
+                "visible_change": "P01 背面刻印被完整发现"
+              },
+              {
+                "id": "E01-S01-SQ02",
+                "type": "knowledge_turn",
+                "purpose": "把证据信息转成人物怀疑",
+                "source_beats": [
+                  "E01-S01-B02"
+                ],
+                "visible_change": "C01 抬眼并质问画外对象"
+              }
+            ],
+            "spatial_plan": {},
+            "information_plan": {
+              "evidence": "P01",
+              "reveal_order": [
+                "刻印",
+                "C01反应"
+              ]
+            },
+            "rhythm_plan": [
+              "reveal",
+              "reaction"
+            ],
+            "camera_strategy": "证据近景后切人物反应，不提前展示画外对象。",
+            "sound_strategy": "保持低环境声，让质问成为声音落点。",
+            "continuity_priorities": [
+              "evidence_state",
+              "knowledge_state",
+              "gaze_target"
+            ]
+          }
         }
       ]
     }
