@@ -95,6 +95,7 @@ Script Lock / Story Contract
 1. `references/sequence-router.md`
 2. `references/director-plan.md`
 3. `references/storyboard-method.md`
+4. `references/continuity-audit.md`
 
 ### cinematic_previs 工作流
 
@@ -121,26 +122,26 @@ Router 根据 `sequence_type` 按需读取：
 
 需要结构化交付时再读：
 
-4. `references/schema.md`
-5. `assets/storyboard-template.md`
+5. `references/schema.md`
+6. `assets/storyboard-template.md`
 
 ### 有对白、配音或翻译时
 
 读取：
 
-6. `references/dialogue-timing.md`
+7. `references/dialogue-timing.md`
 
 ### 目标明确为 MiniMax H3 时
 
 读取：
 
-7. `references/h3-handoff.md`
+8. `references/h3-handoff.md`
 
 ### 需要核对研究依据时
 
 读取：
 
-8. `references/sources.md`
+9. `references/sources.md`
 
 需要机器校验时：
 
