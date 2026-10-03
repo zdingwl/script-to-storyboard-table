@@ -46,9 +46,9 @@ v3.3 吸收电影/动画前期中最值得 AI 短剧使用的几层：
 - **Shot Production Packet**：正式视频模型只执行已经设计好的镜头；
 - **Pickup Feedback Loop**：粗剪发现问题时优先补镜/替换，而不是整场推倒。
 
-Storyboard 与 Animatic 是两个不同质量门；Animatic 会把静态分镜放入时间、声音和运动关系里验证。citeturn192654search0turn192654search8
+Storyboard 与 Animatic 是两个不同质量门；Animatic 会把静态分镜放入时间、声音和运动关系里验证。研究来源见 `references/sources.md`。
 
-Visual Bible / Lookbook 则作为跨部门视觉参考，让 cinematography、production design、lighting、color 等方向不必在每镜重新决定。citeturn192654search9
+Visual Bible / Lookbook 则作为跨部门视觉参考，让 cinematography、production design、lighting、color 等方向不必在每镜重新决定。研究来源见 `references/sources.md`。
 
 ## v3 关键能力
 
