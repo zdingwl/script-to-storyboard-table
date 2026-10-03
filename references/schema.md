@@ -46,6 +46,11 @@ Prop: P01
     "output_language": "zh-CN",
     "dialogue_language": "zh-CN",
     "target_video_model": "MiniMax H3",
+    "workflow_profile": "storyboard | cinematic_previs",
+    "visual_bible": {
+      "status": "locked | draft | pending",
+      "reference": null
+    },
     "model_profile": {
       "name": "minimax-h3",
       "verified_at": "2026-10-03"
@@ -94,6 +99,29 @@ Prop: P01
   "status": "pending"
 }
 ```
+
+## 3.1 Asset State Registry（cinematic_previs 可选）
+
+base asset 解决 identity；state 解决剧情中的连续变化。
+
+```json
+"asset_states": [
+  {
+    "id": "C01-ST02",
+    "asset_id": "C01",
+    "costume_id": "C01-LOOK01",
+    "condition": ["wet"],
+    "injury": [],
+    "location_context": "S01",
+    "held_props": [],
+    "locked_traits": []
+  }
+]
+```
+
+也可以为 Scene / Prop 建立状态 ID，例如 `S01-ST02`、`P03-ST04`。
+
+完整规则见 `references/asset-state-matrix.md`。
 
 ## 4. Episode
 
@@ -144,6 +172,17 @@ Hook 字段可选。
   "props": ["P01"],
   "entry_state": {},
   "exit_state": {},
+  "story_contract": {
+    "objective": "",
+    "obstacle": "",
+    "escalation": [],
+    "information_release": [],
+    "emotional_start": "",
+    "emotional_end": "",
+    "irreversible_change": "",
+    "must_preserve": [],
+    "authorized_flex": []
+  },
   "director_plan": {},
   "beats": [],
   "shots": [],
@@ -334,7 +373,15 @@ v3.2 核心枚举：
   "shot_size": "close-up",
   "angle": "eye-level",
   "camera_movement": "static",
+  "camera_position": "位于 C01-P01 轴线南侧，桌面高度",
+  "lens_intent": "detail-isolation",
+  "lighting_intent": "inherit visual bible",
   "composition": "P01 位于中央前景，C01 手部从画面左侧进入",
+  "depth_layers": {
+    "foreground": "C01 手部",
+    "midground": "P01",
+    "background": "soft hall texture"
+  },
   "characters": ["C01"],
   "blocking": "C01 右手将 P01 翻到背面",
   "action": "刻印露出时手指停住",
@@ -347,6 +394,15 @@ v3.2 核心枚举：
     "characters": ["C01"],
     "props": ["P01"]
   },
+  "asset_state_refs": {
+    "scene": "S01-ST01",
+    "characters": ["C01-ST01"],
+    "props": ["P01-ST02"]
+  },
+  "generation_constraints": [
+    "no costume change",
+    "P01 remains in C01 right hand"
+  ],
   "start_state": {
     "C01": "画面外，仅右手进入画面",
     "P01": "正面朝上"
@@ -708,6 +764,21 @@ timing_estimate_seconds
 ```text
 timing_seconds + timing_source
 ```
+
+## 19.1 Cinematic Previs Derived Artifacts
+
+以下属于 **derived artifacts**，不作为第二套剧情事实源：
+
+```text
+animatic-plan.json
+previs-report.md
+shot-packets/<SHOT_ID>.json
+pickup-requests.json
+```
+
+它们必须从 locked script / storyboard / asset states / visual bible 派生。
+
+Shot Production Packet 字段见 `references/shot-production-packet.md`；Animatic Gate 见 `references/animatic-previs.md`。
 
 ## 20. 推荐文件
 
