@@ -779,7 +779,7 @@ H3/Kling/Veo 专用 Skill 再把 Packet 编译成各模型 Prompt。
 
 详见 `references/shot-production-packet.md`。
 
-## 22. Validator
+## 24. Validator
 
 生成 JSON 后运行：
 
@@ -805,7 +805,7 @@ python scripts/validate_storyboard.py storyboard.json
 
 修复 error；warning 可以保留，但在交付摘要解释。
 
-## 24. 最终交付顺序
+## 25. 最终交付顺序
 
 1. Script Lock / Story Contract 摘要。
 2. Sequence Type / Director Plan 摘要。
