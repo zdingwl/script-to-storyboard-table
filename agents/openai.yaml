@@ -1,4 +1,4 @@
 interface:
   display_name: "AI Director & Cinematic Previsualization"
   short_description: "把锁定剧本编译成导演规划、分镜、Previs 与 AI 视频 Shot Packets"
-  default_prompt: "将输入内容按 faithful 模式转换为 cinematic previs：先做 Script Lock / Story Contract，先判断 sequence_type 并加载对应场型规划；再做导演预规划与 Sequence Plan，战斗场使用 Combat Plan，然后拆 Beat 和 Atomic Shot，检查跨镜衔接、连续性与对白时长；需要自动化接力时同时生成 storyboard.json。"
+  default_prompt: "将输入内容按 faithful 模式转换为 cinematic previs：先做 Script Lock / Story Contract，判断 sequence_type 并加载对应场型规划；再做 Director / Sequence / Combat Plan、Geography / Blocking、Beat 与 Atomic Shot；第一版仅作为 Draft Storyboard，必须执行 Continuity Audit，修复 state_inheritance、action_state、动作相位、空间/道具/人物状态后形成 Approved Storyboard；再进入 Animatic / Previs Gate。需要自动化接力时同时生成 schema v4.0 storyboard.json。"
