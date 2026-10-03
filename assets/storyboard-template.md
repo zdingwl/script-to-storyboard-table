@@ -22,9 +22,33 @@
 
 ## 二、Director Plan
 
-| Scene | Dramatic Job | Turn | Blocking / Axis | Coverage Obligations | Pacing | Hook Role |
+| Scene | Sequence Type | Dramatic Job | Turn | Blocking / Axis | Coverage Obligations | Pacing | Hook Role |
 |---|---|---|---|---|---|---|
-| E01-S01 |  |  |  |  | neutral | none |
+| E01-S01 | dialogue / combat / chase / action / other |  |  |  |  | neutral | none |
+
+## 二-A、Combat Plan（仅战斗场）
+
+| Scene | Combat Goal | Participants | Arena Zones | Combat Beats | Rhythm | Camera Strategy | Continuity Priorities |
+|---|---|---|---|---|---|---|---|
+| E01-S04 |  | C01 / C02 | Z1 / Z2 / Z3 | CB01–CB05 | setup → reversal → finish |  |  |
+
+### Combat Beat 明细
+
+| Combat Beat | 类型 | 剧情职责 | 优势前→后 | Zone 前→后 | Range 前→后 | 可见结果 | Source Beats |
+|---|---|---|---|---|---|---|---|
+| E01-S04-CB01 | pressure / reversal / escalation / finish / aftermath |  | C01 → C02 | Z1 → Z2 | mid → close |  | E01-S04-B03 |
+
+### 战斗连续性检查
+
+- [ ] Combat Goal 明确，不是单纯“打得很燃”
+- [ ] Arena zones 已建立，跨区移动可读
+- [ ] 重要 Combat Beat 有 advantage_before / advantage_after
+- [ ] range 没有无解释从 far 跳到 grapple
+- [ ] 关键冲击有来向/预备、冲击 cue、结果/反应
+- [ ] 多人混战有 primary exchange / secondary threat / theater
+- [ ] 武器/关键道具持有人、持有手、掉落/损坏状态连续
+- [ ] 战斗结束后的 aftermath 已记录
+- [ ] AI Segment 没有塞入过多 Combat Beats
 
 ## 三、角色索引
 
@@ -60,8 +84,8 @@
 
 ## 八、完整分镜表
 
-| 镜号 | 生成段 | 场次 | 时间码 | 时长 | 原剧本节拍 | 镜头职责 | 切点理由 | 景别/角度 | 运镜 | 画面与构图 | 人物/调度 | 动作/表演 | 台词/旁白 + timing | 声音 | 资产 | 首帧状态 | 尾帧状态 | 衔接合同 | 连续性/风险 |
-|---|---|---|---|---:|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 镜号 | 生成段 | 场次 | 时间码 | 时长 | 原剧本节拍 | Combat Context | 镜头职责 | 切点理由 | 景别/角度 | 运镜 | 画面与构图 | 人物/调度 | 动作/表演 | 台词/旁白 + timing | 声音 | 资产 | 首帧状态 | 尾帧状态 | 衔接合同 | 连续性/风险 |
+|---|---|---|---|---:|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | E01-S01-001 | E01-S01-G01 | E01-S01 | 00:00–00:03 | 3s | E01-S01-B01 |  |  | 中近景 / 平视 | 固定 |  |  |  |  |  |  |  |  | first shot |  |
 | E01-S01-002 | E01-S01-G01 | E01-S01 | 00:03–00:06 | 3s | E01-S01-B02 |  |  | 近景 / 平视 | 固定 |  |  |  |  |  |  |  |  | reaction from 001 |  |
 
