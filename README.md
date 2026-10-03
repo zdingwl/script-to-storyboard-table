@@ -2,7 +2,7 @@
 
 将剧本、对白稿、小说改编稿或已有导演计划转换为 **可拍、可剪、可校验、可供 AI 视频流水线继续读取的结构化分镜表**。
 
-当前版本：**v3.1.0（2026-10-03）**。
+当前版本：**v3.2.0（2026-10-03）**。
 
 核心入口是根目录 `SKILL.md`。详细方法按需拆到 `references/`，确定性检查放在 `scripts/`，符合 Skill 的渐进式加载思路。
 
@@ -19,7 +19,9 @@ v3 将正式流程改为：
 
 ```text
 剧情事实
+→ Sequence Type Router
 → 导演预规划
+→ Type-specific Sequence Plan
 → Combat Plan（战斗场）
 → Narrative Beat
 → Atomic Shot
@@ -44,6 +46,41 @@ v3 将正式流程改为：
 - `pacing` 与 `hook_role`。
 
 详见 `references/director-plan.md`。
+
+### 1.2 Sequence Type Router：不同场面使用不同导演语法
+
+v3.2 先识别场型，再拆镜。核心类型覆盖：
+
+```text
+dialogue / negotiation / emotional
+investigation / suspense / horror / stealth
+chase / vehicle / rescue
+combat
+disaster / crowd / comedy / montage / performance / world reveal / transition
+```
+
+每种类型追踪不同核心状态：
+
+| 场型 | 核心状态 |
+|---|---|
+| dialogue | information turn / reaction |
+| negotiation | power / leverage / concession |
+| emotional | distance / trust / gaze |
+| investigation | evidence / knowledge |
+| suspense | withheld answer / threat visibility |
+| horror | unknown space / offscreen threat |
+| stealth | detection / sightline / cover |
+| chase | route / gap / heading |
+| combat | zone / range / advantage / action phase |
+| rescue | hazard / victim / rescue phase |
+| disaster | hazard stage / safe zone / crowd flow |
+| comedy | setup / expectation / payoff |
+| montage | progression / motif / chronology |
+| performance | stage geography / audience relation |
+
+非战斗场通过 `sequence_plan + sequence_context` 把这些状态真正传进 Shot，并跨镜校验。
+
+详见 `references/sequence-router.md`。
 
 ### 1.5 战斗场 Combat Plan
 
@@ -241,8 +278,13 @@ script-to-storyboard-table/
 ├── agents/
 │   └── openai.yaml
 ├── references/
+│   ├── sequence-router.md
 │   ├── director-plan.md
+│   ├── dialogue-emotion-planning.md
+│   ├── suspense-investigation-planning.md
+│   ├── chase-action-planning.md
 │   ├── combat-planning.md
+│   ├── tempo-spectacle-planning.md
 │   ├── storyboard-method.md
 │   ├── dialogue-timing.md
 │   ├── schema.md
@@ -351,6 +393,10 @@ python -m unittest discover -s tests -v
 - v3 禁止 Segment 内复制 Shot；
 - H3 Segment 时长越界；
 - handoff 必须指向真实前镜；
+- v3.2 Scene 必须有合法 sequence_type；
+- 非战斗场必须有对应 sequence_plan；
+- Sequence Beat 必须被 Shot 认领；
+- sequence_context 同名状态必须跨镜连续；
 - combat Scene 必须存在 Combat Plan；
 - 战斗 Shot 的 zone/range/advantage 跨镜连续性。
 
@@ -381,6 +427,7 @@ python -m unittest discover -s tests -v
 
 ## 版本
 
+- `3.2.0` — Sequence Type Router、主要场型专用规划、Sequence Plan/Beat/Context 与通用状态连续性校验。
 - `3.1.0` — Combat Plan、Combat Beat、Arena/Range/Advantage 连续性、战斗示例与 validator。
 - `3.0.0` — Director Plan、Handoff、跨语言 Timing、单一 Shot 事实源、Hook Audit、v3 validator + tests。
 - `2.0.0` — Beat ownership、Atomic Shot、Generation Segment、start/end state、H3 handoff。
