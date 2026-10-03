@@ -1,4 +1,4 @@
-# Storyboard Method Reference v3
+# Storyboard Method Reference v4
 
 本文件是正式拆镜细则。目标不是堆摄影术语，而是让结果具备：
 
@@ -104,6 +104,18 @@ Beat 不等于句子；一句话可能有多个 Beat，多句也可能只是一�
 ```text
 准备 → 接近 → 接触 → 施力/执行 → 结果 → 反应/恢复
 ```
+
+v4 需要跨镜追踪同一个连续物理动作时，同时写机器字段：
+
+```json
+"action_state": {
+  "action_id": "ACT-01",
+  "phase_start": "contact",
+  "phase_end": "execution"
+}
+```
+
+同一 `action_id` 跨镜 phase 不得倒退；`match_on_action` 必须继续同一 action_id。
 
 并不是每相位一镜，但不能无解释跳过观众必须理解的相位。
 
@@ -383,6 +395,33 @@ end_state:
 Scene 边界。
 
 如果只写 `transition: cut`，等于没有解释。
+
+### v4 state_inheritance
+
+连续切镜还必须声明真正需要继承的状态路径：
+
+```json
+{
+  "from_shot_id": "E01-S01-001",
+  "type": "reaction",
+  "reason": "动作/信息触发反应",
+  "state_inheritance": [
+    "characters.C01.zone",
+    "props.P01.holder",
+    "props.P01.hand"
+  ]
+}
+```
+
+Validator 比较：
+
+```text
+previous.end_state[path]
+==
+current.start_state[path]
+```
+
+因此 v4 的 `start_state / end_state` 应使用稳定嵌套对象表达动态连续状态。完整规则见 `continuity-audit.md`。
 
 ## 19. Continuity Ledger
 
