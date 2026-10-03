@@ -1,5 +1,5 @@
 {
-  "schema_version": "3.2",
+  "schema_version": "4.0",
   "project": {
     "title": "证据",
     "aspect_ratio": "9:16",
@@ -13,7 +13,8 @@
     "model_profile": {
       "name": "minimax-h3",
       "verified_at": "2026-10-03"
-    }
+    },
+    "workflow_profile": "cinematic_previs"
   },
   "assets": {
     "characters": [
@@ -174,12 +175,44 @@
                 ]
               },
               "start_state": {
-                "C01": "画面外，仅右手进入画面",
-                "P01": "正面朝上"
+                "characters": {
+                  "C01": {
+                    "zone": "table-left",
+                    "body_position": "standing",
+                    "gaze_target": "P01"
+                  }
+                },
+                "props": {
+                  "P01": {
+                    "holder": "C01",
+                    "hand": "right",
+                    "orientation": "front-up"
+                  }
+                },
+                "environment": {
+                  "location": "S01",
+                  "time": "night"
+                }
               },
               "end_state": {
-                "C01": "右手停住",
-                "P01": "背面朝上，刻印完整可见"
+                "characters": {
+                  "C01": {
+                    "zone": "table-left",
+                    "body_position": "standing",
+                    "gaze_target": "P01"
+                  }
+                },
+                "props": {
+                  "P01": {
+                    "holder": "C01",
+                    "hand": "right",
+                    "orientation": "back-up"
+                  }
+                },
+                "environment": {
+                  "location": "S01",
+                  "time": "night"
+                }
               },
               "handoff_from_previous": null,
               "continuity_notes": "下一镜保持 P01 在右手，C01 视线先向下再抬向画外右侧。",
@@ -204,6 +237,11 @@
                   "gaze_target": "P01"
                 },
                 "attention_target": "P01"
+              },
+              "action_state": {
+                "action_id": "ACT-P01-FLIP",
+                "phase_start": "execution",
+                "phase_end": "result"
               }
             },
             {
@@ -253,17 +291,59 @@
                 ]
               },
               "start_state": {
-                "C01": "长桌左侧，低头看 P01",
-                "P01": "右手持有，背面刻印朝上"
+                "characters": {
+                  "C01": {
+                    "zone": "table-left",
+                    "body_position": "standing",
+                    "gaze_target": "P01"
+                  }
+                },
+                "props": {
+                  "P01": {
+                    "holder": "C01",
+                    "hand": "right",
+                    "orientation": "back-up"
+                  }
+                },
+                "environment": {
+                  "location": "S01",
+                  "time": "night"
+                }
               },
               "end_state": {
-                "C01": "仍在长桌左侧，抬眼看向画外右侧",
-                "P01": "仍在右手，背面刻印朝上"
+                "characters": {
+                  "C01": {
+                    "zone": "table-left",
+                    "body_position": "standing",
+                    "gaze_target": "offscreen-right"
+                  }
+                },
+                "props": {
+                  "P01": {
+                    "holder": "C01",
+                    "hand": "right",
+                    "orientation": "back-up"
+                  }
+                },
+                "environment": {
+                  "location": "S01",
+                  "time": "night"
+                }
               },
               "handoff_from_previous": {
                 "from_shot_id": "E01-S01-001",
                 "type": "reaction",
-                "reason": "上一镜证据完整露出后，切到发现者反应，注意力从物转人。"
+                "reason": "上一镜证据完整露出后，切到发现者反应，注意力从物转人。",
+                "state_inheritance": [
+                  "characters.C01.zone",
+                  "characters.C01.body_position",
+                  "characters.C01.gaze_target",
+                  "props.P01.holder",
+                  "props.P01.hand",
+                  "props.P01.orientation",
+                  "environment.location",
+                  "environment.time"
+                ]
               },
               "continuity_notes": "P01 不换手；视线从向下自然抬到画外右侧。",
               "risk": {
