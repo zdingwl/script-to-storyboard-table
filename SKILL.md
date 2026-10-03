@@ -1,10 +1,10 @@
 ---
 name: script-to-storyboard-table
-description: 将剧本、对白稿、小说改编稿、导演计划或已有分镜转换、检查并修复为可拍、可剪、可供 AI 视频流水线读取的结构化分镜表。用于剧本转分镜、shot list、短剧/漫剧拆镜、导演预规划、Beat→Shot 可追溯拆解、镜头时长与跨语言对白重算、人物调度、首尾状态、跨镜衔接、Generation Segment、连续性诊断，以及 MiniMax H3 等下游视频模型交接。默认忠实于原剧情；不负责擅自改剧情、生成最终视频 Prompt、图片或视频。
+description: 将剧本、对白稿、小说改编稿、导演计划或已有分镜转换、检查并修复为可拍、可剪、可供 AI 视频流水线读取的结构化分镜表。用于剧本转分镜、shot list、短剧/漫剧拆镜、导演预规划、战斗/动作场 Combat Plan、Beat→Shot 可追溯拆解、镜头时长与跨语言对白重算、人物调度、首尾状态、跨镜衔接、Generation Segment、连续性诊断，以及 MiniMax H3 等下游视频模型交接。默认忠实于原剧情；不负责擅自改剧情、生成最终视频 Prompt、图片或视频。
 compatibility: Portable Agent Skill. Works in ChatGPT/Codex/Claude-style agents that can read SKILL.md and local resources. Validator uses Python 3 standard library only.
 metadata:
   author: zdingwl
-  version: "3.0.0"
+  version: "3.1.0"
   updated: "2026-10-03"
 ---
 
@@ -17,6 +17,7 @@ metadata:
 ```text
 剧情事实
 → 导演预规划
+→ Combat Plan（战斗场）
 → Beat
 → Atomic Shot
 → Continuity Handoff
@@ -80,23 +81,29 @@ metadata:
 3. `references/schema.md`
 4. `assets/storyboard-template.md`
 
+### 战斗 / 打戏 / 多人动作场
+
+读取：
+
+5. `references/combat-planning.md`
+
 ### 有对白、配音或翻译时
 
 读取：
 
-5. `references/dialogue-timing.md`
+6. `references/dialogue-timing.md`
 
 ### 目标明确为 MiniMax H3 时
 
 读取：
 
-6. `references/h3-handoff.md`
+7. `references/h3-handoff.md`
 
 ### 需要核对研究依据时
 
 读取：
 
-7. `references/sources.md`
+8. `references/sources.md`
 
 需要机器校验时：
 
@@ -162,6 +169,51 @@ python scripts/validate_storyboard.py storyboard.json --strict
 - `hook_role`：none / setup / escalation / end_hook。
 
 导演预规划细则见 `references/director-plan.md`。
+
+### 4.1 战斗场必须增加 Combat Plan
+
+如果 Scene 属于连续战斗、打戏、持械对抗或多人混战，在 Director Plan 中设置：
+
+```json
+"sequence_type": "combat"
+```
+
+并在拆普通 Beat / Shot 前建立 `combat_plan`，至少明确：
+
+- `combat_goal`：这场战斗在剧情上必须完成什么；
+- `participants`：参与者目标、起始区域、状态和关键道具；
+- `arena`：空间 zones、出入口、障碍/高低差和主要移动路径；
+- `combat_beats`：真正改变战斗状态的节点，而不是逐拳逐脚；
+- `advantage_before / advantage_after`：每个 Combat Beat 的权力变化；
+- `zone_before / zone_after`：空间移动；
+- `range_before / range_after`：仅用于镜头连续性的 far / mid / close / grapple；
+- `rhythm_plan`：交锋、停顿、反转、升级、决定性节点、after-math；
+- `camera_strategy`：camera 如何服务 choreography，而不是反过来；
+- `continuity_priorities`：方向、距离、动作相位、道具、伤势和多人位置。
+
+战斗场正式链路：
+
+```text
+Director Plan
+→ Combat Plan
+→ Combat Beat
+→ Action Phase
+→ Atomic Shot
+→ Combat Handoff
+→ Aftermath
+```
+
+关键原则：
+
+- Combat Beat 是一次状态变化，不是“一拳”；
+- 重要冲击至少要能读到“来向/预备 → 接触感或暗示 → 结果/反应”；
+- 优势变化必须有可见原因；
+- 多人混战先分 primary exchange / secondary threat / theaters；
+- 复杂 choreography 优先简化 camera；
+- AI 视频中单个 Segment 通常只承载 1–2 个清楚 Combat Beats；
+- 真实拍摄安全、动作技术和武器操作必须交给专业动作/特技团队，本 Skill 只规划银幕连续性。
+
+完整规则见 `references/combat-planning.md`。
 
 ## 5. 先拆 Beat，再拆 Shot
 
@@ -482,6 +534,16 @@ v3 规则：
 - blocking / axis / coverage obligations 已明确；
 - Shot 设计能追溯到场次任务。
 
+### B2. Combat Plan（战斗场）
+
+- `sequence_type=combat` 时必须有 Combat Plan；
+- arena zones、参与者和 Combat Beats 已建立；
+- 优势变化、空间移动、range 与 action phase 可连续；
+- 关键冲击有前因与结果，不靠动作跳帧；
+- 多人混战有明确主要交锋或 theater；
+- 武器/关键道具、伤势与 aftermath 状态连续；
+- AI Segment 没有同时承载过多 Combat Beats。
+
 ### C. 镜头可执行
 
 - 每镜只有一个主要视觉任务；
@@ -548,11 +610,12 @@ python scripts/validate_storyboard.py storyboard.json
 
 1. 分镜摘要：场次、镜数、总时长、Segment 数。
 2. Director Plan 摘要。
-3. 角色/场景/道具索引或待绑定资产。
-4. Beat 清单。
-5. 完整分镜表。
-6. 节奏/钩子节点。
-7. 连续性、对白时长和高风险说明。
-8. 若需要自动化：`storyboard.json` + validator 结果。
+3. Combat Plan 摘要（有战斗场时）。
+4. 角色/场景/道具索引或待绑定资产。
+5. Beat 清单。
+6. 完整分镜表。
+7. 节奏/钩子节点。
+8. 连续性、对白时长、战斗连续性和高风险说明。
+9. 若需要自动化：`storyboard.json` + validator 结果。
 
 不要在结尾自动追加视频 Prompt；除非用户明确要求进入下一阶段。
