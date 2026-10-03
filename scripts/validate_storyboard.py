@@ -1,293 +1,327 @@
 #!/usr/bin/env python3
-"""Validate storyboard.json produced by script-to-storyboard-table.
-
-Python 3 standard library only.
-Usage:
-    python scripts/validate_storyboard.py storyboard.json
-    python scripts/validate_storyboard.py storyboard.json --strict
-"""
-
+"""Deterministic validator for script-to-storyboard-table schema v3."""
 from __future__ import annotations
 
 import argparse
 import json
 import math
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 VALID_MODES = {"faithful", "visual", "pacing", "story"}
-H3_MIN_SECONDS = 4.0
-H3_MAX_SECONDS = 15.0
-H3_MAX_IMAGES = 9
-H3_MAX_VIDEOS = 3
-H3_MAX_AUDIOS = 3
-H3_MAX_MIXED_REFS = 12
+HANDOFF_TYPES = {
+    "direct", "match_on_action", "eyeline", "reaction", "insert",
+    "insert_return", "sound_bridge", "reframe", "motivated_jump",
+    "time_jump", "scene_cut",
+}
+TIMING_SOURCES = {
+    "measured_audio", "measured_tts", "scripted", "estimated_target_text",
+    "estimated", "inherited_source",
+}
+H3_RULES_VERIFIED_AT = "2026-10-03"
+H3 = {
+    "min": 4.0, "max": 15.0, "images": 9, "videos": 3, "audios": 3,
+    "mixed": 12, "ref_min": 2.0, "ref_max": 15.0,
+    "video_total": 15.0, "audio_total": 15.0,
+}
 
 
-def approx(a, b, eps=1e-6):
+def number(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def close(a, b, eps=1e-3):
     return math.isclose(float(a), float(b), abs_tol=eps)
 
 
 def validate(data):
-    errors = []
-    warnings = []
-    seen_ids = set()
+    errors, warnings = [], []
+    seen = set()
 
-    def error(msg):
-        errors.append(msg)
-
-    def warn(msg):
-        warnings.append(msg)
-
-    def unique_id(value, where):
+    def error(msg): errors.append(msg)
+    def warn(msg): warnings.append(msg)
+    def uid(value, where):
         if not value:
             error(f"{where}: missing id")
-            return
-        if value in seen_ids:
+        elif str(value) in seen:
             error(f"{where}: duplicate id {value}")
-        seen_ids.add(value)
+        else:
+            seen.add(str(value))
 
     if not isinstance(data, dict):
         return ["root: JSON must be an object"], []
 
-    if str(data.get("schema_version", "")) != "2.0":
-        warn("root: schema_version is not '2.0'")
+    version = str(data.get("schema_version", ""))
+    if version != "3.0":
+        warn(f"root: schema_version {version!r}; validator is optimized for 3.0")
 
     project = data.get("project") or {}
-    mode = project.get("mode", "faithful")
-    if mode not in VALID_MODES:
-        error(f"project.mode: unsupported value {mode!r}")
+    if project.get("mode", "faithful") not in VALID_MODES:
+        error(f"project.mode: unsupported value {project.get('mode')!r}")
+
+    source_lang = project.get("source_language")
+    output_lang = project.get("output_language")
+    dialogue_lang = project.get("dialogue_language")
+    translated = bool(source_lang and output_lang and source_lang != output_lang)
+    project_model = str(project.get("target_video_model") or "")
+    if "minimax" in project_model.lower() and "h3" in project_model.lower():
+        verified = (project.get("model_profile") or {}).get("verified_at")
+        if verified != H3_RULES_VERIFIED_AT:
+            warn(
+                "project.model_profile.verified_at: expected "
+                f"{H3_RULES_VERIFIED_AT!r}; re-check current official H3 limits"
+            )
+
+    assets = data.get("assets") or {}
+    asset_ids = {
+        key: {str(x.get("id")) for x in assets.get(key, []) if isinstance(x, dict) and x.get("id")}
+        for key in ("characters", "scenes", "props")
+    }
 
     episodes = data.get("episodes")
     if not isinstance(episodes, list) or not episodes:
-        error("root.episodes: expected a non-empty list")
-        return errors, warnings
+        return ["root.episodes: expected a non-empty list"], warnings
 
-    for ep_i, episode in enumerate(episodes, 1):
-        where_ep = f"episodes[{ep_i}]"
+    project_runtime = 0.0
+
+    for ei, episode in enumerate(episodes, 1):
+        epw = f"episodes[{ei}]"
         if not isinstance(episode, dict):
-            error(f"{where_ep}: expected object")
+            error(f"{epw}: expected object")
             continue
-        unique_id(episode.get("id"), where_ep)
+        uid(episode.get("id"), epw)
+
+        ending = ((episode.get("hook_audit") or {}).get("ending") or {})
+        if isinstance(ending, dict) and ending.get("type") == "result_only":
+            warn(f"{epw}.hook_audit.ending: result_only is not an unresolved hook")
 
         scenes = episode.get("scenes") or []
-        if not scenes:
-            warn(f"{where_ep}: no scenes")
+        if not isinstance(scenes, list):
+            error(f"{epw}.scenes: expected list")
+            continue
 
-        for sc_i, scene in enumerate(scenes, 1):
-            where_sc = f"{where_ep}.scenes[{sc_i}]"
+        episode_runtime = 0.0
+        for si, scene in enumerate(scenes, 1):
+            scw = f"{epw}.scenes[{si}]"
             if not isinstance(scene, dict):
-                error(f"{where_sc}: expected object")
+                error(f"{scw}: expected object")
                 continue
-
             scene_id = scene.get("id")
-            unique_id(scene_id, where_sc)
+            uid(scene_id, scw)
+
+            if version == "3.0":
+                plan = scene.get("director_plan")
+                if not isinstance(plan, dict):
+                    warn(f"{scw}: missing director_plan")
+                else:
+                    for key in ("dramatic_job", "turn", "blocking_plan"):
+                        if not plan.get(key): warn(f"{scw}.director_plan: missing {key}")
+                    if not plan.get("coverage_obligations"):
+                        warn(f"{scw}.director_plan: no coverage_obligations")
 
             beats = scene.get("beats") or []
-            beat_ids = []
-            must_preserve = set()
-            for b_i, beat in enumerate(beats, 1):
-                where_b = f"{where_sc}.beats[{b_i}]"
+            beat_ids, beat_index, must = [], {}, set()
+            for bi, beat in enumerate(beats, 1):
+                bw = f"{scw}.beats[{bi}]"
                 if not isinstance(beat, dict):
-                    error(f"{where_b}: expected object")
+                    error(f"{bw}: expected object")
                     continue
                 bid = beat.get("id")
-                unique_id(bid, where_b)
+                uid(bid, bw)
                 if bid:
+                    bid = str(bid)
+                    beat_index[bid] = len(beat_ids)
                     beat_ids.append(bid)
-                    if beat.get("must_preserve", True):
-                        must_preserve.add(bid)
+                    if beat.get("must_preserve", True): must.add(bid)
+            beat_set, coverage = set(beat_ids), Counter()
 
-            beat_set = set(beat_ids)
-            coverage = Counter()
+            shots = scene.get("shots") or []
+            if not isinstance(shots, list):
+                error(f"{scw}.shots: expected list")
+                shots = []
+            shot_by_id, shot_order = {}, []
+            previous_id, previous_out = None, None
 
-            def check_shot(shot, where_shot, expected_segment=None):
+            for qi, shot in enumerate(shots, 1):
+                sw = f"{scw}.shots[{qi}]"
                 if not isinstance(shot, dict):
-                    error(f"{where_shot}: shot must be object")
-                    return None
-
-                unique_id(shot.get("id"), where_shot)
-
+                    error(f"{sw}: expected object")
+                    continue
+                sid = shot.get("id")
+                uid(sid, sw)
+                sid = str(sid) if sid else None
+                if sid:
+                    shot_by_id[sid] = shot
+                    shot_order.append(sid)
                 if scene_id and shot.get("scene_id") not in (None, scene_id):
-                    error(
-                        f"{where_shot}: scene_id {shot.get('scene_id')!r} "
-                        f"does not match parent {scene_id!r}"
-                    )
-
-                if expected_segment and shot.get("segment_id") not in (None, expected_segment):
-                    error(
-                        f"{where_shot}: segment_id {shot.get('segment_id')!r} "
-                        f"does not match parent {expected_segment!r}"
-                    )
+                    error(f"{sw}: scene_id does not match parent {scene_id!r}")
 
                 src = shot.get("source_beats") or []
-                if not src:
-                    warn(f"{where_shot}: no source_beats")
+                indices = []
                 for bid in src:
-                    coverage[bid] += 1
+                    bid = str(bid); coverage[bid] += 1
                     if beat_set and bid not in beat_set:
-                        error(f"{where_shot}: unknown source beat {bid}")
+                        error(f"{sw}: unknown source beat {bid}")
+                    elif bid in beat_index:
+                        indices.append(beat_index[bid])
+                if len(indices) > 1 and not shot.get("nonlinear_exception"):
+                    if indices != sorted(indices): error(f"{sw}: source_beats are out of scene order")
+                    if indices and indices != list(range(indices[0], indices[-1] + 1)):
+                        error(f"{sw}: source_beats are not contiguous")
 
-                duration = shot.get("duration_seconds")
-                if duration is None:
-                    error(f"{where_shot}: missing duration_seconds")
-                    return None
-                try:
-                    duration = float(duration)
-                except (TypeError, ValueError):
-                    error(f"{where_shot}: duration_seconds must be numeric")
-                    return None
-                if duration <= 0:
-                    error(f"{where_shot}: duration_seconds must be > 0")
+                duration = number(shot.get("duration_seconds"))
+                if duration is None or duration <= 0:
+                    error(f"{sw}: duration_seconds must be > 0")
+                    duration = 0.0
+                episode_runtime += duration; project_runtime += duration
 
-                tin = shot.get("timecode_in")
-                tout = shot.get("timecode_out")
-                if tin is not None and tout is not None:
-                    try:
-                        if not approx(float(tout) - float(tin), duration, 1e-3):
-                            error(
-                                f"{where_shot}: timecode_out - timecode_in "
-                                f"!= duration_seconds"
-                            )
-                    except (TypeError, ValueError):
-                        error(f"{where_shot}: timecodes must be numeric seconds")
+                tin, tout = number(shot.get("timecode_in")), number(shot.get("timecode_out"))
+                if tin is not None and tout is not None and not close(tout - tin, duration):
+                    error(f"{sw}: timecode_out - timecode_in != duration_seconds")
+                if previous_out is not None and tin is not None and not close(previous_out, tin):
+                    warn(f"{sw}: finished-cut timecode is not contiguous with previous shot")
+                if tout is not None: previous_out = tout
 
-                if not shot.get("start_state"):
-                    warn(f"{where_shot}: missing start_state")
-                if not shot.get("end_state"):
-                    warn(f"{where_shot}: missing end_state")
-                if not shot.get("shot_size"):
-                    warn(f"{where_shot}: missing shot_size")
-                if not shot.get("camera_movement"):
-                    warn(f"{where_shot}: missing camera_movement")
+                for key in ("start_state", "end_state", "shot_size", "camera_movement"):
+                    if not shot.get(key): warn(f"{sw}: missing {key}")
+                if version == "3.0":
+                    for key in ("purpose", "cut_reason"):
+                        if not shot.get(key): warn(f"{sw}: missing {key}")
 
-                return duration
+                handoff = shot.get("handoff_from_previous")
+                if qi > 1 and version == "3.0":
+                    if not isinstance(handoff, dict):
+                        warn(f"{sw}: missing handoff_from_previous")
+                    else:
+                        if handoff.get("type") not in HANDOFF_TYPES:
+                            error(f"{sw}.handoff_from_previous: unsupported type {handoff.get('type')!r}")
+                        if handoff.get("from_shot_id") != previous_id:
+                            error(f"{sw}.handoff_from_previous.from_shot_id does not match previous shot {previous_id!r}")
+                        if not handoff.get("reason"):
+                            warn(f"{sw}.handoff_from_previous: missing reason")
 
-            # Traditional workflow: shots directly under the scene.
-            scene_shots = scene.get("shots") or []
-            previous_out = None
-            for sh_i, shot in enumerate(scene_shots, 1):
-                where_shot = f"{where_sc}.shots[{sh_i}]"
-                check_shot(shot, where_shot)
-                if isinstance(shot, dict):
-                    tin = shot.get("timecode_in")
-                    tout = shot.get("timecode_out")
-                    if previous_out is not None and tin is not None:
-                        try:
-                            if not approx(previous_out, float(tin), 1e-3):
-                                warn(f"{where_shot}: timecode is not contiguous with previous shot")
-                        except (TypeError, ValueError):
-                            pass
-                    if tout is not None:
-                        try:
-                            previous_out = float(tout)
-                        except (TypeError, ValueError):
-                            pass
-
-            # AI workflow: shots grouped inside generation segments.
-            segments = scene.get("generation_segments") or []
-            for sg_i, segment in enumerate(segments, 1):
-                where_sg = f"{where_sc}.generation_segments[{sg_i}]"
-                if not isinstance(segment, dict):
-                    error(f"{where_sg}: expected object")
-                    continue
-
-                segment_id = segment.get("id")
-                unique_id(segment_id, where_sg)
-                if scene_id and segment.get("scene_id") not in (None, scene_id):
-                    error(f"{where_sg}: segment crosses/mismatches parent scene")
-
-                seg_shots = segment.get("shots") or []
-                sum_duration = 0.0
-                previous_local_out = None
-
-                for sh_i, shot in enumerate(seg_shots, 1):
-                    where_shot = f"{where_sg}.shots[{sh_i}]"
-                    if isinstance(shot, str):
-                        warn(f"{where_shot}: ID-only shot cannot be deeply validated")
+                speech_load, overlap = 0.0, False
+                for field in ("dialogue", "voiceover"):
+                    lines = shot.get(field) or []
+                    if not isinstance(lines, list):
+                        error(f"{sw}.{field}: expected list")
                         continue
-                    duration = check_shot(shot, where_shot, segment_id)
-                    if duration is not None:
-                        sum_duration += duration
-
-                    if isinstance(shot, dict):
-                        tin = shot.get("timecode_in")
-                        tout = shot.get("timecode_out")
-                        if previous_local_out is not None and tin is not None:
-                            try:
-                                if not approx(previous_local_out, float(tin), 1e-3):
-                                    warn(f"{where_shot}: timecode is not contiguous with previous shot")
-                            except (TypeError, ValueError):
-                                pass
-                        if tout is not None:
-                            try:
-                                previous_local_out = float(tout)
-                            except (TypeError, ValueError):
-                                pass
-
-                declared = segment.get("duration_seconds")
-                if declared is not None:
-                    try:
-                        declared_f = float(declared)
-                        if seg_shots and not approx(declared_f, sum_duration, 1e-3):
-                            error(
-                                f"{where_sg}: duration_seconds={declared_f:g} "
-                                f"but shots sum to {sum_duration:g}"
-                            )
-                    except (TypeError, ValueError):
-                        error(f"{where_sg}: duration_seconds must be numeric")
-                        declared_f = None
-                else:
-                    declared_f = sum_duration if seg_shots else None
-
-                target = str(segment.get("target_model") or project.get("target_video_model") or "")
-                if "minimax" in target.lower() and "h3" in target.lower():
-                    if declared_f is not None and not (H3_MIN_SECONDS <= declared_f <= H3_MAX_SECONDS):
-                        error(
-                            f"{where_sg}: MiniMax H3 duration {declared_f:g}s "
-                            f"outside {H3_MIN_SECONDS:g}-{H3_MAX_SECONDS:g}s"
-                        )
-
-                    refs = segment.get("reference_assets") or []
-                    if len(refs) > H3_MAX_MIXED_REFS:
-                        error(f"{where_sg}: H3 mixed references exceed {H3_MAX_MIXED_REFS}")
-
-                    image_n = video_n = audio_n = 0
-                    labels = []
-                    for ref in refs:
-                        if not isinstance(ref, dict):
-                            warn(f"{where_sg}: reference asset should be an object")
+                    for li, line in enumerate(lines, 1):
+                        lw = f"{sw}.{field}[{li}]"
+                        if isinstance(line, str):
+                            if version == "3.0": warn(f"{lw}: use object with language/timing")
                             continue
-                        label = str(ref.get("label") or "")
-                        labels.append(label)
-                        low = label.lower()
-                        if low.startswith("picture") or low.startswith("image"):
-                            image_n += 1
+                        if not isinstance(line, dict):
+                            error(f"{lw}: expected object or string")
+                            continue
+                        lang = line.get("language")
+                        if version == "3.0" and not lang: warn(f"{lw}: missing language")
+                        elif dialogue_lang and lang and str(lang) != str(dialogue_lang):
+                            warn(f"{lw}: language differs from project.dialogue_language")
+                        source = line.get("timing_source")
+                        if source and source not in TIMING_SOURCES:
+                            error(f"{lw}: unsupported timing_source {source!r}")
+                        if translated and source == "inherited_source":
+                            error(f"{lw}: inherited_source timing is invalid when project language changes")
+                        timing = number(line.get("timing_seconds"))
+                        if line.get("text") and timing is None: warn(f"{lw}: missing timing_seconds")
+                        if timing is not None:
+                            is_overlap = bool(line.get("overlap") or line.get("overlap_with_dialogue"))
+                            overlap = overlap or is_overlap
+                            if not is_overlap: speech_load += timing
+                if speech_load > duration + 1e-6:
+                    error(f"{sw}: dialogue/voiceover timing exceeds shot duration")
+                elif duration and speech_load > duration * 0.88:
+                    warn(f"{sw}: speech uses more than 88% of shot duration")
+                if overlap: warn(f"{sw}: overlapping timed speech requires manual review")
+
+                refs = shot.get("assets") or {}
+                if isinstance(refs, dict):
+                    if refs.get("scene") and asset_ids["scenes"] and str(refs["scene"]) not in asset_ids["scenes"]:
+                        error(f"{sw}: unknown scene asset {refs['scene']}")
+                    for kind in ("characters", "props"):
+                        for aid in refs.get(kind) or []:
+                            if asset_ids[kind] and str(aid) not in asset_ids[kind]:
+                                error(f"{sw}: unknown {kind[:-1]} asset {aid}")
+                previous_id = sid
+
+            memberships = defaultdict(list)
+            segments = scene.get("generation_segments") or []
+            for gi, seg in enumerate(segments, 1):
+                gw = f"{scw}.generation_segments[{gi}]"
+                if not isinstance(seg, dict):
+                    error(f"{gw}: expected object"); continue
+                uid(seg.get("id"), gw)
+                if version == "3.0" and "shots" in seg:
+                    error(f"{gw}: v3 forbids embedded segment.shots; use scene.shots + segment.shot_ids")
+                ids = seg.get("shot_ids") or []
+                if not isinstance(ids, list): error(f"{gw}.shot_ids: expected list"); ids = []
+                total, last_index = 0.0, None
+                for sid in map(str, ids):
+                    memberships[sid].append(seg.get("id"))
+                    shot = shot_by_id.get(sid)
+                    if not shot:
+                        error(f"{gw}: unknown shot_id {sid}"); continue
+                    total += number(shot.get("duration_seconds")) or 0.0
+                    idx = shot_order.index(sid)
+                    if last_index is not None and idx <= last_index: error(f"{gw}: shot_ids are not in scene order")
+                    last_index = idx
+                declared = number(seg.get("duration_seconds"))
+                if ids and declared is not None and not close(declared, total):
+                    error(f"{gw}: duration_seconds={declared:g} but referenced shots sum to {total:g}")
+
+                model = str(seg.get("target_model") or project_model)
+                if "minimax" in model.lower() and "h3" in model.lower():
+                    if declared is not None and not (H3["min"] <= declared <= H3["max"]):
+                        error(f"{gw}: MiniMax H3 duration {declared:g}s outside 4-15s")
+                    refs = seg.get("reference_assets") or []
+                    if len(refs) > H3["mixed"]: error(f"{gw}: H3 mixed references exceed 12")
+                    counts = Counter(); totals = Counter(); labels = []
+                    for ri, ref in enumerate(refs, 1):
+                        if not isinstance(ref, dict): continue
+                        label = str(ref.get("label") or ""); labels.append(label)
+                        low = label.lower(); dur = number(ref.get("duration_seconds"))
+                        if low.startswith(("picture", "image")): counts["image"] += 1
                         elif low.startswith("video"):
-                            video_n += 1
+                            counts["video"] += 1
+                            if dur is not None:
+                                if not H3["ref_min"] <= dur <= H3["ref_max"]: error(f"{gw}: H3 video reference duration outside 2-15s")
+                                totals["video"] += dur
                         elif low.startswith("audio"):
-                            audio_n += 1
-                    if image_n > H3_MAX_IMAGES:
-                        error(f"{where_sg}: H3 image references exceed {H3_MAX_IMAGES}")
-                    if video_n > H3_MAX_VIDEOS:
-                        error(f"{where_sg}: H3 video references exceed {H3_MAX_VIDEOS}")
-                    if audio_n > H3_MAX_AUDIOS:
-                        error(f"{where_sg}: H3 audio references exceed {H3_MAX_AUDIOS}")
-                    nonempty_labels = [x for x in labels if x]
-                    if len(nonempty_labels) != len(set(nonempty_labels)):
-                        error(f"{where_sg}: duplicate reference labels")
+                            counts["audio"] += 1
+                            if dur is not None:
+                                if not H3["ref_min"] <= dur <= H3["ref_max"]: error(f"{gw}: H3 audio reference duration outside 2-15s")
+                                totals["audio"] += dur
+                    if counts["image"] > H3["images"]: error(f"{gw}: H3 image references exceed 9")
+                    if counts["video"] > H3["videos"]: error(f"{gw}: H3 video references exceed 3")
+                    if counts["audio"] > H3["audios"]: error(f"{gw}: H3 audio references exceed 3")
+                    if totals["video"] > H3["video_total"]: error(f"{gw}: H3 total video reference duration exceeds 15s")
+                    if totals["audio"] > H3["audio_total"]: error(f"{gw}: H3 total audio reference duration exceeds 15s")
+                    labels = [x for x in labels if x]
+                    if len(labels) != len(set(labels)): error(f"{gw}: duplicate reference labels")
 
-            # Beat coverage is checked after both scene-level and segment-level shots.
-            for bid in sorted(must_preserve):
-                if coverage[bid] == 0:
-                    error(f"{where_sc}: must-preserve beat not covered: {bid}")
+            for sid, segs in memberships.items():
+                if len(segs) > 1: error(f"{scw}: shot {sid} belongs to multiple generation segments {segs}")
+            for bid in beat_ids:
+                if bid in must and coverage[bid] == 0: error(f"{scw}: must-preserve beat not covered: {bid}")
                 elif coverage[bid] > 1:
-                    warn(
-                        f"{where_sc}: beat {bid} covered {coverage[bid]} times; "
-                        "add coverage_exception if intentional"
-                    )
+                    related = [s for s in shots if bid in (s.get("source_beats") or [])]
+                    if not related or not all(s.get("coverage_exception") for s in related):
+                        warn(f"{scw}: beat {bid} covered {coverage[bid]} times without coverage_exception")
 
+        target = number(episode.get("target_runtime_seconds"))
+        if target is not None and not close(target, episode_runtime):
+            msg = f"{epw}: target_runtime_seconds={target:g} but canonical shots sum to {episode_runtime:g}"
+            (error if episode.get("runtime_lock", project.get("runtime_lock", False)) else warn)(msg)
+
+    target = number(project.get("target_runtime_seconds"))
+    if target is not None and not close(target, project_runtime):
+        msg = f"project: target_runtime_seconds={target:g} but canonical shots sum to {project_runtime:g}"
+        (error if project.get("runtime_lock", False) else warn)(msg)
     return errors, warnings
 
 
@@ -295,31 +329,22 @@ def main():
     parser = argparse.ArgumentParser(description="Validate storyboard.json")
     parser.add_argument("file", type=Path)
     parser.add_argument("--strict", action="store_true", help="Treat warnings as failure")
+    parser.add_argument("--json", action="store_true", help="Emit machine-readable report")
     args = parser.parse_args()
-
     try:
         data = json.loads(args.file.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        print(f"ERROR: file not found: {args.file}", file=sys.stderr)
-        return 2
-    except json.JSONDecodeError as exc:
-        print(f"ERROR: invalid JSON: {exc}", file=sys.stderr)
-        return 2
-
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr); return 2
     errors, warnings = validate(data)
-
-    for item in warnings:
-        print(f"WARNING: {item}")
-    for item in errors:
-        print(f"ERROR: {item}")
-
-    print(f"\nValidation summary: {len(errors)} error(s), {len(warnings)} warning(s)")
-
-    if errors:
-        return 1
-    if warnings and args.strict:
-        return 1
-    return 0
+    if args.json:
+        print(json.dumps({"errors": errors, "warnings": warnings, "summary": {
+            "error_count": len(errors), "warning_count": len(warnings),
+            "h3_rules_verified_at": H3_RULES_VERIFIED_AT}}, ensure_ascii=False, indent=2))
+    else:
+        for item in warnings: print(f"WARNING: {item}")
+        for item in errors: print(f"ERROR: {item}")
+        print(f"\nValidation summary: {len(errors)} error(s), {len(warnings)} warning(s)")
+    return 1 if errors or (warnings and args.strict) else 0
 
 
 if __name__ == "__main__":

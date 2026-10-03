@@ -1,0 +1,4 @@
+interface:
+  display_name: "剧本转分镜表"
+  short_description: "把剧本拆成可拍、可剪、可供 AI 视频流水线继续读取的结构化分镜表"
+  default_prompt: "将输入内容按 faithful 模式转换为 v3 分镜：先做导演预规划，再拆 Beat 和 Atomic Shot，检查跨镜衔接、连续性与对白时长；需要自动化接力时同时生成 storyboard.json。"

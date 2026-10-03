@@ -1,265 +1,366 @@
 ---
 name: script-to-storyboard-table
-description: 将剧本、对白稿、小说改编稿或已有分镜拆解为可拍、可剪、可供 AI 视频流水线读取的结构化分镜表。用于剧本转分镜、镜头表、shot list、短剧/漫剧拆镜、节拍认领、镜头时长规划、景别与运镜设计、人物调度、首尾状态、角色/场景/道具引用、连续性检查，以及为 MiniMax H3、Seedance、Kling、Veo、Runway 等下游视频生成准备交接数据。默认忠实于原剧情；本 Skill 不负责改写剧情、不生成最终视频提示词、不生成图片或视频。
-compatibility: Portable Agent Skill. Works in Claude Code, Codex and other agents that can read SKILL.md and local reference files. Optional validator requires Python 3 standard library only.
+description: 将剧本、对白稿、小说改编稿、导演计划或已有分镜转换、检查并修复为可拍、可剪、可供 AI 视频流水线读取的结构化分镜表。用于剧本转分镜、shot list、短剧/漫剧拆镜、导演预规划、Beat→Shot 可追溯拆解、镜头时长与跨语言对白重算、人物调度、首尾状态、跨镜衔接、Generation Segment、连续性诊断，以及 MiniMax H3 等下游视频模型交接。默认忠实于原剧情；不负责擅自改剧情、生成最终视频 Prompt、图片或视频。
+compatibility: Portable Agent Skill. Works in ChatGPT/Codex/Claude-style agents that can read SKILL.md and local resources. Validator uses Python 3 standard library only.
 metadata:
   author: zdingwl
-  version: "2.0.0"
-  updated: "2026-09-15"
+  version: "3.0.0"
+  updated: "2026-10-03"
 ---
 
-# 剧本转分镜表
+# 剧本转分镜表 v3
 
-把“文学/剧本语言”编译成“镜头语言”。最终结果必须能被导演、剪辑师、分镜图生成 Skill、关键帧 Skill 和视频 Prompt Skill 继续读取，而不是一张只有漂亮描述、无法执行的表。
+把“文学/剧本语言”编译成“导演、剪辑、关键帧和 AI 视频生成都能继续执行的镜头数据”。
+
+核心原则：
+
+```text
+剧情事实
+→ 导演预规划
+→ Beat
+→ Atomic Shot
+→ Continuity Handoff
+→ Timing
+→ Generation Segment（需要时）
+→ Audit
+```
+
+不要直接从一段剧本文字跳到一张看似完整的镜头表。单镜正确但相邻镜无法连接，仍然是不合格分镜。
 
 ## 0. 职责边界
 
-本 Skill **负责**：
+### 本 Skill 负责
 
-- 解析场次、人物、地点、时间、道具、对白、旁白和声音。
-- 将剧情拆成可追溯的 narrative beats（剧情节拍）。
-- 将 beats 组织成 generation segments（生成段）和 atomic shots（原子镜头）。
-- 设计景别、角度、机位、运镜、构图、人物调度和剪辑衔接。
-- 维护人物、道具、动作、空间、光线和声音连续性。
+- 解析 Scene、人物、地点、时间、道具、对白、旁白、声音和已知资产。
+- 若没有上游导演计划，先做**导演预规划**，明确场次职责、转折、blocking、轴线、coverage 和节奏。
+- 将原稿拆成可追溯 Narrative Beats。
+- 将 Beat 编译为可拍、可剪、可生成的 Atomic Shots。
+- 为每镜记录 `start_state → action → end_state`。
+- 为相邻镜记录 `handoff_from_previous`，明确为什么这里能切。
+- 规划 shot duration、累计时间码和对白容量。
+- 当目标语言发生变化时，按目标文本/目标音频**重新计算对白时长**，禁止沿用源语言时长。
+- 维护人物、道具、动作、空间、视线、光线、声音和屏幕方向连续性。
+- 需要 AI 视频生产时，将连续 shots 分组为 Generation Segments。
 - 输出 Markdown 分镜表；需要机器接力时同时输出 `storyboard.json`。
-- 如果目标是 AI 视频模型，为下游记录生成模式、时长、参考资产和风险，但不写最终模型 Prompt。
+- 运行确定性 validator，并报告 error / warning。
 
-本 Skill **不负责**：
+### 本 Skill 不负责
 
-- 未经授权改剧情、加反转、删核心事件、改台词事实。
-- 生成角色设定图、场景图、分镜图或视频。
-- 编写 MiniMax H3 / Seedance / Kling 等最终视频提示词；这是下游 Prompt Skill 的职责。
-- 为缺失事实编造角色外观、道具状态或世界观设定。
+- 未经授权改剧情因果、角色决定、核心台词事实、结局或反转。
+- 为缺失设定凭空发明角色外观、服装、世界观或资产细节。
+- 生成角色图、场景图、分镜图或视频。
+- 编写 MiniMax H3 / Seedance / Kling / Veo 等最终模型 Prompt。
+- 用“电影感、高级感、宿命感”替代具体镜头设计。
+- 为了满足模型时长限制，把不连续的剧情硬塞进同一个 Segment。
 
-若用户只要求“把剧本转成分镜表”，不要把任务膨胀成整套视频生产。
+如果用户只要求“剧本转分镜表”，不要自动扩展成整套视频生产。
 
-## 1. 默认工作模式
+## 1. 默认模式
 
-除非用户另有要求，使用 `faithful`：
-
-| 模式 | 允许做什么 | 不允许做什么 |
+| 模式 | 允许 | 禁止 |
 |---|---|---|
-| `faithful` | 拆节拍、视觉化、拆镜、最小必要补全 | 改剧情因果、增删关键事实 |
-| `visual` | 在 faithful 基础上增强构图、动作、反应、声音、环境反馈 | 新增剧情事件 |
-| `pacing` | 可拆合镜头、调整镜头时长、局部重排纯表现性镜头 | 改变核心因果与人物决定 |
+| `faithful` | 拆 Beat、导演化、视觉化、拆镜、必要补全 | 改核心剧情和事实 |
+| `visual` | 在 faithful 上增强构图、动作、反应、声音和环境反馈 | 新增剧情事件 |
+| `pacing` | 拆合表现镜头、调整镜头时长、重排纯表现性 coverage | 改核心因果与人物决定 |
 | `story` | 按用户明确授权范围改剧情 | 超出授权范围改写 |
 
-若用户没有指定模式，不要追问，默认 `faithful` 并继续。
+未指定时使用 `faithful`，无需追问。
 
-## 2. 最小读取路径
+## 2. 按需读取
 
-普通剧本转分镜时依次读取：
+### 正常剧本转分镜
 
-1. [references/storyboard-method.md](references/storyboard-method.md) — 拆节拍、拆镜、导演语法、连续性。
-2. [references/schema.md](references/schema.md) — 输出字段、ID、JSON 结构。
-3. [assets/storyboard-template.md](assets/storyboard-template.md) — Markdown 交付模板。
+先读：
 
-只有目标明确涉及 MiniMax H3 或用户说“后面要多图参考生视频/H3”时，再读取：
+1. `references/director-plan.md`
+2. `references/storyboard-method.md`
 
-4. [references/h3-handoff.md](references/h3-handoff.md) — H3 交接边界与当前官方能力约束。
+需要结构化交付时再读：
 
-需要核对资料来源时读取：
+3. `references/schema.md`
+4. `assets/storyboard-template.md`
 
-5. [references/sources.md](references/sources.md)。
+### 有对白、配音或翻译时
 
-需要机器校验时运行：
+读取：
+
+5. `references/dialogue-timing.md`
+
+### 目标明确为 MiniMax H3 时
+
+读取：
+
+6. `references/h3-handoff.md`
+
+### 需要核对研究依据时
+
+读取：
+
+7. `references/sources.md`
+
+需要机器校验时：
 
 ```bash
 python scripts/validate_storyboard.py storyboard.json
 ```
 
-## 3. 输入契约
+严格模式：
 
-### 3.1 必需输入
-
-至少要有以下之一：
-
-- 完整剧本；
-- 单场剧本；
-- 对白稿 + 明确动作；
-- 小说/故事段落，并明确要“忠实转换成分镜”。
-
-### 3.2 有则读取，不强制索取
-
-- 角色表 / 角色 ID / 角色参考图路径；
-- 场景表 / 场景 ID / 场景参考图路径；
-- 道具表 / 道具 ID / 参考图路径；
-- 目标总时长、画幅、平台、视觉风格；
-- 目标视频模型；
-- 已批准的前序分镜或前一场尾帧状态。
-
-缺失但不影响第一版时，使用 `unknown` / `pending` / `assumed` 标记，不要停下来追问。
-
-## 4. 核心数据模型
-
-使用四层结构：
-
-```text
-Episode（集，可选）
-└── Scene（场）
-    └── Generation Segment（生成段，可选；AI 视频一次生成任务的规划单位）
-        └── Shot（分镜 / cut；最终剪辑单位）
+```bash
+python scripts/validate_storyboard.py storyboard.json --strict
 ```
 
-**Scene** 是时空边界。地点、时间或连续空间发生实质变化时开新场。
+## 3. 输入处理
 
-**Generation Segment** 是下游 AI 视频生产规划单位，不等于最终剪辑镜头。一个生成段可以包含多个 cut；传统真人拍摄可省略这一层。
+至少接受一种输入：
 
-**Shot** 是分镜表的最小正式单位。每个 Shot 必须有明确开始状态、可见动作/信息和结束状态。
+- 完整剧本或单场剧本；
+- 对白稿 + 动作；
+- 小说/故事段落，并明确要求忠实分镜；
+- 已有导演计划；
+- 已有分镜表 / storyboard.json，需要诊断或修复。
+
+有则读取，不强制索取：
+
+- 上游导演计划；
+- 角色 / 场景 / 道具资产清单与稳定 ID；
+- 前一场尾帧或已批准镜头；
+- 目标总时长、画幅、平台、目标语言；
+- 目标视频模型与用户提供的当前模型限制。
+
+缺失但不阻止第一版时，使用 `unknown` / `pending` / `assumed`，不要停下询问。
+
+### 上游优先级
+
+若输入同时存在多个版本，按以下事实层处理：
+
+```text
+用户当前明确指令
+> 已批准导演计划/剧本
+> 已批准资产事实
+> 已批准前序分镜状态
+> 未确认草稿
+> 模型自行补全
+```
+
+后层不得覆盖前层。
+
+## 4. 必须先做导演预规划
+
+如果用户已提供导演计划，读取并尊重；不要重新发明。
+
+如果没有，先对每个 Scene 建立最小 Director Plan：
+
+- `dramatic_job`：这场戏必须完成什么；
+- `turn`：本场真正发生变化的点；
+- `entry_state / exit_state`；
+- `blocking_plan`：人物初始关系、关键移动、视线；
+- `axis_plan`：180°轴线或有意越轴方案；
+- `coverage_obligations`：必须看清的动作、反应、证据、空间；
+- `visual_strategy`：本场主要视觉逻辑，不是风格形容词；
+- `pacing`：held / neutral / compressed；
+- `hook_role`：none / setup / escalation / end_hook。
+
+导演预规划细则见 `references/director-plan.md`。
 
 ## 5. 先拆 Beat，再拆 Shot
 
-不要按句号、换行或每句台词机械拆镜。
+Beat 是一次有意义的状态变化，不是句号或台词行。
 
-先把每场拆成 `Beat`：每个 Beat 表示一次有意义的状态变化，例如：
+常见 Beat：
 
-- 新信息被看见/听见；
-- 人物目标、权力关系或情绪强度发生变化；
-- 一个动作完成关键阶段；
-- 证据、道具或空间关系改变；
-- 问题被提出、延期或兑现。
+- 信息获得 / 暴露；
+- 目标变化；
+- 权力变化；
+- 动作阶段完成；
+- 道具或空间状态改变；
+- 可观察的情绪阈值变化；
+- 问题被提出、延期、兑现或替换。
 
-编号建议：
+稳定编号：
 
 ```text
 E01-S03-B01
 E01-S03-B02
-E01-S03-B03
 ```
 
-每个正式 Shot 必须通过 `source_beats` 认领一个或多个**连续** Beat。
+每个 Shot 必须通过 `source_beats` 认领一个或多个**连续 Beat**。
 
 默认质量门：
 
-- Beat 不得无故漏掉；
-- Beat 不得无故重复认领；
-- Shot 不得跨 Scene 认领 Beat；
-- 顺序不得逆转，除非剧本明确是闪回、插叙或平行蒙太奇。
+- `must_preserve=true` Beat 不得漏；
+- 不得无理由重复认领；
+- Shot 不得跨 Scene 认领；
+- Beat 顺序不得倒置，除非有明确非线性结构；
+- coverage 镜头重复同一 Beat 时写 `coverage_exception`。
 
-这条规则优先级高于“镜头看起来丰富”。
+## 6. Atomic Shot
 
-## 6. 原子镜头规则
+一个正常 Shot 应同时满足：
 
-默认一个 Shot 同时满足：
-
-1. 一个连续时空。
-2. 一个主导景别。
-3. 一个主要视觉行动/信息目的。
-4. 一个主要摄影机运动；固定机位也算明确选择。
-5. 明确 `start_state → action → end_state`。
-6. 对白、动作、反应和摄影机运动能在时长内完成。
-7. 能追溯到原剧本 Beat 或用户授权。
+1. 一个连续时空；
+2. 一个主导景别；
+3. 一个主要注意力中心；
+4. 一个主要视觉行动/信息任务；
+5. 一个主要摄影机运动，固定也算明确选择；
+6. 明确 `start_state → action → end_state`；
+7. 时长能容纳动作、对白和必要停顿；
+8. 相邻镜存在可解释的切点。
 
 出现以下情况优先拆镜：
 
-- 文字里实际包含“切到/再看/另一边/与此同时”等隐藏剪辑；
-- 景别跨越过大且中间需要独立读取信息；
-- 注意力中心从 A 明显切换到 B；
-- 关键证据、手部动作、道具细节需要独立特写；
-- 重台词后的听者反应值得独立读取；
-- 同镜同时要求复杂动作、多人精确口型、手部交互和复杂运镜；
-- 同镜跨地点、跨时间或跨光照状态。
+- 文本实际隐藏了“切到 / 再看 / 同时 / 另一边”；
+- 注意力中心从 A 换到 B；
+- 需要独立读取小道具、屏幕、伤口、手部动作；
+- 重台词后的听者反应重要；
+- 同镜包含复杂动作 + 多人精准口型 + 小道具 + 复杂运镜；
+- 跨地点、跨时间、跨服装/伤势/光线状态；
+- 镜头内部需要两个互相冲突的构图目标。
 
-允许长镜头，但必须标记 `long_take_exception`，并写清人物路线、摄影机路线、关键节点和拆镜备用方案。
+允许长镜头，但要标记 `long_take_exception`，写明人物路线、摄影机路线、关键节点和拆镜备用方案。
 
-## 7. 镜头时长策略
+## 7. 每次切镜必须有理由
 
-时长由**信息量 + 动作可完成性 + 台词可说完**共同决定，不按固定数字硬切。
+除第一镜外，每个 Shot 写：
 
-默认启发式（不是所有模型的硬限制）：
-
-- 冲击插入 / 证据特写：约 1–3 秒；
-- 普通反应 / 单一动作：约 2–4 秒；
-- 对话近景 / 中景：约 3–6 秒；
-- 建立空间 / 连续动作：约 4–8 秒；
-- 更长镜头仅在叙事和模型条件允许时使用。
-
-如果明确以 AI 短剧/漫剧为目标，优先保持 Shot 简单、短而完整；不要为了“少生成几次”把多个独立事件塞进一个镜头。
-
-对白必须做容量检查。没有明确语速时只做估算并标注 `timing_estimate`，不要伪装成精确口型时长。
-
-## 8. 导演语法
-
-### 8.1 新场景
-
-新空间通常先让观众知道“谁、在哪、关系如何”，但不是机械规定每场都必须大远景开场。可根据钩子优先级选择：
-
-- 运动主体 → 空间建立 → 关键局部；
-- 异常/证据特写 → 反应 → 空间揭示；
-- 两人关系镜头 → 正反打。
-
-### 8.2 对话
-
-根据戏剧关系组合：
-
-- master / two-shot：交代空间和人物关系；
-- OTS：保持双方关系与轴线；
-- close-up：给高信息量台词、决定、情绪落点；
-- reaction：重台词之后优先给听者反应；
-- insert：合同、手机、伤口、钥匙、武器等叙事证据。
-
-不要每句台词都机械正反打；镜头变化要对应信息、权力、情绪或注意力变化。
-
-### 8.3 动作
-
-优先使用：
-
-- 动接动（cut on action）；
-- 视线匹配（eyeline match）；
-- 运动方向连续；
-- 动作相位连续（伸手 → 接触 → 抓住 → 拉回）；
-- 必要时插入反应或结果镜头。
-
-动作中切通常比动作彻底结束后再切更顺。
-
-### 8.4 运镜
-
-固定机位是有效选择，不是缺省错误。
-
-- 推：强调发现、压力、情绪；
-- 拉：揭示关系、后果、收束；
-- 跟：主体移动；
-- 摇/移：重新分配注意力或揭示空间；
-- 环绕/复杂运动：只有叙事收益明显时使用。
-
-不要让每个镜头都“推拉摇移升降环绕”。
-
-## 9. 空间与连续性
-
-每镜维护 Continuity Ledger：
-
-- 人物左右位置、面朝方向、视线目标；
-- 动作相位、姿势、站/坐/跪等状态；
-- 服装、发型、伤势、污渍；
-- 道具位置、状态、持有者、持有手；
-- 门窗开关、灯光、天气、时间；
-- 180°轴线状态与过轴方式；
-- 画面运动方向；
-- 对白、环境声、音乐、声桥的跨镜状态。
-
-前后相邻镜至少检查：
-
-```text
-previous.end_state → current.start_state
+```json
+"handoff_from_previous": {
+  "from_shot_id": "E01-S01-001",
+  "type": "match_on_action",
+  "reason": "在手即将触碰门把时切入手部近景"
+}
 ```
 
-如果不一致，要么修镜头，要么写出明确的中间动作/时间跳跃/切换理由。
+推荐 `type`：
 
-## 10. 把抽象文字转成可见证据
+- `direct`
+- `match_on_action`
+- `eyeline`
+- `reaction`
+- `insert`
+- `insert_return`
+- `sound_bridge`
+- `reframe`
+- `motivated_jump`
+- `time_jump`
+- `scene_cut`
 
-摄像机拍不到“她很绝望”“气氛很压迫”“他已经下定决心”。把抽象描述转换成可见或可听信息：
+如果说不清“为什么这里切、下一镜从哪里接”，优先认为缺镜、错镜或切点不成立。
 
-- 身体动作与动作结果；
-- 人物距离/站位改变；
-- 道具状态改变；
-- 可重复表演的表情或呼吸；
-- 环境物理反应；
-- 沉默、脚步、门响、纸张、手机震动等声音；
-- 必要且自然的台词。
+## 8. 时间与对白
 
-不要用“电影感、大片感、高级感、宿命感”代替具体画面设计。
+镜头时长由三件事共同决定：
 
-## 11. 角色、场景、道具资产引用
+```text
+视觉信息读取时间
++ 动作完成时间
++ 对白/旁白/声音容量
+```
+
+启发式只作初稿：
+
+- 冲击 insert：约 1–3 秒；
+- 单一动作/反应：约 2–4 秒；
+- 对话近景/中景：约 3–6 秒；
+- 空间建立/连续动作：约 4–8 秒。
+
+不要把这些数字当模型硬限制。
+
+### 跨语言硬规则
+
+如果对白从一种语言翻成另一种语言：
+
+- 原 shot duration **立即失效为可复用依据**；
+- 必须根据目标语言最终台词重新估算，最好使用目标 TTS/实录测量；
+- `timing_source` 不得继续写 `inherited_source`；
+- 如目标文本尚未最终锁定，标记 `estimated_target_text`；
+- 翻译发生后，重新做 shot duration、scene runtime、segment duration 和总时长检查。
+
+详细规则见 `references/dialogue-timing.md`。
+
+## 9. Blocking 先于 Camera
+
+每镜先确定：
+
+- 人物在哪里；
+- 朝哪边；
+- 看谁/看什么；
+- 怎么移动；
+- 道具在哪只手；
+- 镜头结束时停在哪里。
+
+之后才决定 shot size、angle、movement。
+
+镜头变化应服务以下至少一种：
+
+- 新信息；
+- 权力/关系变化；
+- 注意力转移；
+- 动作连续；
+- 情绪落点；
+- 空间重新建立；
+- 节奏需要。
+
+不是为了“镜头丰富”而变化。
+
+## 10. 连续性合同
+
+每镜维护：
+
+- 人物左右/前后位置；
+- 面朝、视线；
+- 姿势和动作相位；
+- 服装、发型、伤势、污渍；
+- 道具位置、持有人、持有手、状态；
+- 门窗、车辆、大型物体状态；
+- 时间、天气、光线；
+- 180°轴线；
+- 屏幕运动方向；
+- 对白、VO、音乐、环境声、J/L cut。
+
+相邻镜至少检查：
+
+```text
+previous.end_state
+→ handoff_from_previous
+→ current.start_state
+```
+
+只检查首尾状态而不检查“中间如何切过去”，仍然不够。
+
+## 11. Coverage 与缺镜审计
+
+每场对照 Director Plan 的 `coverage_obligations` 检查：
+
+- 空间第一次出现时是否足够建立；
+- 关键证据是否读得清；
+- 关键动作是否缺阶段；
+- 重台词是否需要听者反应；
+- 位置改变是否有过渡；
+- 轴线变化是否有重建或有意越轴；
+- insert 后是否知道回到哪里；
+- 结果镜是否缺原因镜，或原因镜是否缺结果镜。
+
+不要为了“保险”无限增加 coverage；每个镜头都应有 `purpose` 和 `cut_reason`。
+
+## 12. 钩子只做“视觉兑现”，不擅改剧情
+
+短剧/漫剧如存在开场或结尾钩子，检查它是否被镜头语言准确保留。
+
+优先识别：
+
+- 信息缺口；
+- 未知威胁逼近；
+- 秘密即将暴露；
+- 选择尚未作出；
+- 认知反转刚发生但后果未知；
+- 倒计时/行动未完成。
+
+“结果已经发生且没有新的未决问题”通常只是结果，不应被误标为强钩子。
+
+本 Skill 可以调整镜头呈现，但在 `faithful` 模式下不能凭空增加悬念事实。
+
+## 13. Asset 使用
 
 有资产清单时使用稳定 ID：
 
@@ -269,127 +370,189 @@ S01 场景
 P01 道具
 ```
 
-每镜写 `assets`，只引用画面真正需要的资产。
+只引用实际需要的资产。
 
-示例：
+若没有资产表：
 
-```json
-{
-  "characters": ["C01", "C03"],
-  "scene": "S02",
-  "props": ["P04"]
-}
+- 可以列出 `asset_requirements`；
+- 只记录“需要什么资产/状态”；
+- 不替资产 Skill 发明具体脸、服装、材质、色彩设计；
+- 用 `pending` 标记待绑定项。
+
+## 14. Generation Segment
+
+只有下游需要“一次 AI 视频生成任务”时使用。
+
+**v3 单一事实源：**
+
+```text
+Scene.shots = 唯一正式 Shot 数据
+GenerationSegment.shot_ids = 只引用 Shot ID
 ```
 
-对 AI 视频尤其重要：不要在每镜重新发明人物服装、道具颜色、场景结构。
+不要把完整 Shot 再复制一份到 Segment 里。
 
-## 12. Generation Segment 规划
-
-只有下游需要“单次视频生成任务”时使用。
-
-规则：
+Segment 规则：
 
 - 不跨 Scene；
-- 尽量保持同一环境、光照和主要人物组合；
-- Segment 的 cut 顺序就是预期剪辑/生成内部顺序；
-- Segment 要记录总时长、目标模型、预期模式和参考资产清单；
-- 模型硬限制必须来自当前模型资料，而不是永久写死在通用镜头规则中。
+- `shot_ids` 按剪辑顺序；
+- total duration = 引用 shots 的 duration 之和；
+- 同一环境、时间、主要人物和参考资产关系尽量稳定；
+- 高风险交互、状态突变或关键帧边界可主动断 Segment；
+- 模型硬限制只来自当前官方资料或用户给定资料。
 
-MiniMax H3 的当前交接规则见 [references/h3-handoff.md](references/h3-handoff.md)。
+Segment 内模型时间线从 `shot_ids + duration_seconds` **派生**，不维护第二份手写 cut 时间码。
 
-## 13. 标准分镜表
+## 15. 时间码唯一语义
 
-默认输出以下列；用户明确要简版时再减列：
+v3 中：
 
-| 字段 | 说明 |
+- `Shot.timecode_in / timecode_out` = 成片/集内累计时间；
+- Segment 本地 cut 时间从该 Segment 的 `shot_ids` 顺序和 Shot 时长推导；
+- 不把 Segment 本地时间和成片全局时间混在同一个字段。
+
+这样可避免“分镜表显示 00:32，但 H3 Prompt 需要 0.00 秒起算”的歧义。
+
+## 16. 标准输出
+
+默认 Markdown 主表至少包含：
+
+| 字段 | 作用 |
 |---|---|
-| 镜号 | 稳定 ID，如 `E01-S03-004` |
-| 生成段 | 如 `E01-G05`；非 AI 流程可空 |
-| 场次 | 场号 + 场景名/时间 |
-| 时间码 | 镜头在成片中的累计起止 |
+| 镜号 | 稳定 ID |
+| 生成段 | 可空 |
+| 场次 | Scene |
+| 时间码 | 成片累计 |
 | 时长 | 秒 |
 | 原剧本节拍 | `source_beats` |
-| 景别/角度 | 主导景别 + 角度 |
-| 运镜 | 主要摄影运动 |
-| 画面与构图 | 前/中/后景、注意力中心 |
-| 人物/调度 | 人物位置、朝向、走位 |
-| 动作/表演 | 可执行动作和反应 |
-| 情绪目的 | 此镜承担的情绪/叙事作用 |
-| 台词/旁白 | 原文为主，不擅改 |
-| 声音 | 环境声、动作声、声桥 |
-| 场景/道具/资产 | S/C/P ID |
+| 镜头职责 | `purpose` |
+| 景别/角度 | framing |
+| 运镜 | camera |
+| 画面与构图 | composition |
+| 人物/调度 | blocking |
+| 动作/表演 | action/performance |
+| 台词/旁白 | 含目标语言 timing |
+| 声音 | ambience/SFX/bridge |
+| 资产 | C/S/P |
 | 首帧状态 | `start_state` |
-| 尾帧/衔接 | `end_state` + transition |
-| 连续性/风险 | 轴线、动作相位、生成难点 |
+| 尾帧状态 | `end_state` |
+| 衔接合同 | `handoff_from_previous` |
+| 连续性/风险 | notes + risk |
 
-使用 [assets/storyboard-template.md](assets/storyboard-template.md) 交付。
+模板见 `assets/storyboard-template.md`。
 
-## 14. 机器可读 JSON
+## 17. 机器 JSON
 
-当任务会继续进入图片/视频自动化流水线时，同时输出 `storyboard.json`。字段定义见 [references/schema.md](references/schema.md)。
+需要下游自动化时输出 `storyboard.json`。
 
-机器数据是 Markdown 表的结构化镜像，不要维护两套互相矛盾的事实。
+v3 规则：
 
-## 15. 增量修改规则
+- `scene.shots` 是 Shot 唯一事实源；
+- Segment 只存 `shot_ids`；
+- Dialogue 行显式存 `language`、`timing_seconds`、`timing_source`；
+- 非第一镜存 `handoff_from_previous`；
+- Scene 存 `director_plan`；
+- 模型 profile 带 `verified_at`。
 
-当用户说“只改第 6、7 镜，其他不要动”时：
+完整字段见 `references/schema.md`。
 
-1. 冻结已接受版本。
-2. 只改指定镜头。
-3. 必须连读前一镜与后一镜，检查 `end_state/start_state`。
-4. 只有连续性被牵连时，才最小修改相邻镜的衔接字段。
-5. 不重写未受影响的镜头，不偷偷优化其它内容。
+## 18. 增量修改
 
-## 16. 质量门（交付前必须过）
+用户说“只改第 6、7 镜”时：
+
+1. 冻结其余已批准内容；
+2. 读取第 5–8 镜；
+3. 只修改 6、7；
+4. 若连续性受牵连，只最小修改相邻镜的 handoff/状态字段；
+5. 不重排未受影响 ID；
+6. 不偷偷优化其他镜；
+7. 重新计算受影响后的时间码、Scene runtime 和 Segment runtime。
+
+## 19. 交付前质量门
 
 ### A. 剧情保真
 
-- 所有核心 Beat 被覆盖；无无授权增删剧情。
-- 台词事实、人物关系、关键道具没有被改写。
+- must-preserve Beat 全覆盖；
+- 无无授权增删；
+- 核心台词事实、关系、道具事实不漂移。
 
-### B. 镜头可执行
+### B. Director Plan
 
-- 每镜有明确主体、动作/信息和结果。
-- 没有隐藏剪辑、无故跨场、不可完成动作链。
-- 时长能容纳主要动作和对白。
+- 每场有 dramatic job 与 turn；
+- blocking / axis / coverage obligations 已明确；
+- Shot 设计能追溯到场次任务。
 
-### C. 摄影与剪辑
+### C. 镜头可执行
 
-- 景别变化有目的，不是随机变焦。
-- 运镜克制且可执行。
-- 关键动作、反应、证据有足够 coverage。
-- 视线、运动方向、180°轴线不造成无意空间混乱。
+- 每镜只有一个主要视觉任务；
+- 无隐藏剪辑；
+- 动作和对白能在时长内完成；
+- `purpose` 和 `cut_reason` 成立。
 
-### D. 连续性
+### D. 跨镜连续
 
-- 相邻镜 start/end state 可衔接。
-- 人物、服装、道具、伤势、天气、光照、声音连续。
-- 跳时空时有明确标记。
+- `end_state → handoff → start_state` 成立；
+- 屏幕方向、视线、动作相位、道具、服装、环境连续；
+- 30°/180°规则没有无意制造跳切或空间混乱；
+- insert/cutaway 能安全返回主动作。
 
-### E. AI 生产（若适用）
+### E. Timing
 
-- 每镜任务负载不过量。
-- Generation Segment 满足当前目标模型时长/参考素材硬限制。
-- 参考资产 ID 唯一、角色/场景/道具职责明确。
-- 高风险交互有拆镜或降级建议。
+- 时间码连续；
+- Scene/Episode 时长可解释；
+- 对白 timing 不超过镜头容量；
+- 目标语言变化后已重新计时；
+- Segment 时长由 shots 派生，没有第二份冲突时间线。
 
-如果生成了 JSON，最后运行：
+### F. AI 生产（若适用）
+
+- Segment 不跨 Scene；
+- reference 角色明确；
+- 模型约束核对日期可见；
+- 复杂多人/小道具/口型/运镜没有同镜过载；
+- 高风险镜头有 fallback。
+
+### G. Hook（若适用）
+
+- 钩子来自原剧情或授权；
+- 没把“已经给出结果”误当“未决问题”；
+- 最后一镜没有提前把下一拍的信息泄完。
+
+## 20. Validator
+
+生成 JSON 后运行：
 
 ```bash
 python scripts/validate_storyboard.py storyboard.json
 ```
 
-修复 error；warning 可保留，但必须在交付摘要中说明。
+当前 validator 检查：
 
-## 17. 最终交付顺序
+- schema/version；
+- 全局 ID 重复；
+- Beat 覆盖与顺序；
+- canonical Shot / Segment 引用关系；
+- 时长与时间码；
+- handoff 结构；
+- 对白 timing 与镜头容量；
+- 跨语言 stale timing；
+- Segment duration 与 shot_ids 求和；
+- H3 当前官方范围和参考素材数量；
+- H3 profile 核对日期；
+- 资产引用；
+- 常见缺字段 warning。
 
-默认按以下顺序交付：
+修复 error；warning 可以保留，但在交付摘要解释。
 
-1. **分镜摘要**：总场次、总镜数、总时长、生成段数量（若有）。
-2. **角色/场景/道具索引**：仅列本次实际使用项。
-3. **完整分镜表**。
-4. **节奏节点**：开场钩子、升级、高潮/反转、结尾钩子。
-5. **连续性与高风险说明**。
-6. **机器交接文件**：如果下游需要，提供 `storyboard.json`。
+## 21. 最终交付顺序
 
-不要在结尾自动附加视频 Prompt，除非用户明确要求进入下一阶段。
+1. 分镜摘要：场次、镜数、总时长、Segment 数。
+2. Director Plan 摘要。
+3. 角色/场景/道具索引或待绑定资产。
+4. Beat 清单。
+5. 完整分镜表。
+6. 节奏/钩子节点。
+7. 连续性、对白时长和高风险说明。
+8. 若需要自动化：`storyboard.json` + validator 结果。
+
+不要在结尾自动追加视频 Prompt；除非用户明确要求进入下一阶段。
