@@ -4,11 +4,11 @@ description: 将剧本、对白稿、小说改编稿、导演计划或已有分�
 compatibility: Portable Agent Skill. Works in ChatGPT/Codex/Claude-style agents that can read SKILL.md and local resources. Validator uses Python 3 standard library only.
 metadata:
   author: zdingwl
-  version: "3.3.0"
-  updated: "2026-10-03"
+  version: "4.0.0"
+  updated: "2026-10-04"
 ---
 
-# AI Director & Cinematic Previsualization v3.3
+# AI Director & Cinematic Previsualization v4.0
 
 把“文学/剧本语言”编译成“导演、剪辑、关键帧和 AI 视频生成都能继续执行的镜头数据”。
 
@@ -25,7 +25,9 @@ Script Lock / Story Contract
 → Beat / Coverage
 → Atomic Shot
 → Continuity Handoff
-→ Storyboard
+→ Draft Storyboard
+→ Continuity Audit / Repair
+→ Approved Storyboard
 → Animatic / Previs Gate
 → AI Video Shot Production Packet
 ```
@@ -44,7 +46,8 @@ Script Lock / Story Contract
 - 将原稿拆成可追溯 Narrative Beats。
 - 将 Beat 编译为可拍、可剪、可生成的 Atomic Shots。
 - 为每镜记录 `start_state → action → end_state`。
-- 为相邻镜记录 `handoff_from_previous`，明确为什么这里能切。
+- 为相邻镜记录 `handoff_from_previous`，明确为什么这里能切；v4 连续切镜同时声明 `state_inheritance`，机器校验上一镜尾状态是否真正进入下一镜首帧。
+- 连续物理动作按需记录 `action_state`，用稳定 `action_id + phase_start/phase_end` 防止动作重启、倒退或跳过关键阶段。
 - 规划 shot duration、累计时间码和对白容量。
 - 当目标语言发生变化时，按目标文本/目标音频**重新计算对白时长**，禁止沿用源语言时长。
 - 读取或声明 Visual Bible 锁定项，并通过 Asset State Matrix 维护人物、服装、伤势、湿度、道具、场景损坏、时间等连续状态。
@@ -101,7 +104,10 @@ Script Lock / Story Contract
 - `references/script-lock-contract.md`
 - `references/visual-bible-contract.md`
 - `references/asset-state-matrix.md`
+- `references/continuity-audit.md`
+- `references/ai-video-shot-transition.md`
 - `references/animatic-previs.md`
+- `references/previs-validation.md`
 - `references/shot-production-packet.md`
 - 需要粗剪反馈时读取 `references/post-generation-loop.md`
 
@@ -356,8 +362,9 @@ E01-S03-B02
 4. 一个主要视觉行动/信息任务；
 5. 一个主要摄影机运动，固定也算明确选择；
 6. 明确 `start_state → action → end_state`；
-7. 时长能容纳动作、对白和必要停顿；
-8. 相邻镜存在可解释的切点。
+7. 只有一个主要**可见状态变化**，或多个小变化属于同一个连续动作；
+8. 时长能容纳动作、对白和必要停顿；
+9. 相邻镜存在可解释的切点。
 
 出现以下情况优先拆镜：
 
@@ -379,7 +386,12 @@ E01-S03-B02
 "handoff_from_previous": {
   "from_shot_id": "E01-S01-001",
   "type": "match_on_action",
-  "reason": "在手即将触碰门把时切入手部近景"
+  "reason": "在同一动作中切入手部近景",
+  "state_inheritance": [
+    "characters.C01.zone",
+    "characters.C01.body_position",
+    "props.P01.holder"
+  ]
 }
 ```
 
@@ -398,6 +410,40 @@ E01-S03-B02
 - `scene_cut`
 
 如果说不清“为什么这里切、下一镜从哪里接”，优先认为缺镜、错镜或切点不成立。
+
+### 8.1 v4 State Inheritance
+
+对于连续切镜（direct / match_on_action / eyeline / reaction / insert / insert_return / sound_bridge / reframe），`state_inheritance` 必须列出真正需要从上一镜 `end_state` 继承到本镜 `start_state` 的 dot paths。
+
+Validator 必须验证：
+
+```text
+previous.end_state[path] == current.start_state[path]
+```
+
+`motivated_jump / time_jump / scene_cut` 可以不做完整继承，但必须有明确 reason。
+
+### 8.2 v4 Action State
+
+跨镜连续物理动作按需使用：
+
+```json
+"action_state": {
+  "action_id": "ACT-01",
+  "phase_start": "contact",
+  "phase_end": "execution"
+}
+```
+
+通用 phase：
+
+```text
+prepare → approach → contact → execution → result → reaction → recovery → aftermath
+```
+
+同一 action_id 跨镜不能倒退；`match_on_action` 必须继续同一个 action_id。不是所有对话/反应镜都强制添加 action_state。
+
+完整规则见 `references/continuity-audit.md` 与 `references/ai-video-shot-transition.md`。
 
 ## 9. 时间与对白
 
@@ -479,6 +525,40 @@ previous.end_state
 ```
 
 只检查首尾状态而不检查“中间如何切过去”，仍然不够。
+
+### 11.1 Draft → Audit → Repair → Approved
+
+v4 不把第一版分镜直接视为可生产分镜：
+
+```text
+Draft Storyboard
+→ Continuity Audit
+→ Continuity Repair
+→ Approved Storyboard
+```
+
+Continuity Audit 至少检查：
+
+- geography / zone / route；
+- 人物位置、朝向、视线；
+- 道具 holder / hand / state；
+- action_id / phase；
+- 服装、伤势、湿度、污渍；
+- 门窗、车辆、天气、光线、破坏阶段；
+- screen direction / axis；
+- insert return；
+- cause → effect / action → reaction；
+- 是否有两个本可在同一连续镜头完成、却被机械拆开的冗余 Shot。
+
+修复优先级：
+
+1. 修 start/end/handoff；
+2. 修 blocking/action phase；
+3. 调整切点；
+4. 合并冗余碎镜；
+5. 只有确实缺过程时才补镜；
+6. 剧情允许省略时才使用 motivated_jump；
+7. 仍不可读再返回 Director / Sequence Plan。
 
 ## 12. Coverage 与缺镜审计
 
@@ -564,7 +644,7 @@ P01 道具
 
 只有下游需要“一次 AI 视频生成任务”时使用。
 
-**v3 单一事实源：**
+**v4 继续坚持单一事实源：**
 
 ```text
 Scene.shots = 唯一正式 Shot 数据
@@ -586,7 +666,7 @@ Segment 内模型时间线从 `shot_ids + duration_seconds` **派生**，不维�
 
 ## 17. 时间码唯一语义
 
-v3 中：
+v4 中：
 
 - `Shot.timecode_in / timecode_out` = 成片/集内累计时间；
 - Segment 本地 cut 时间从该 Segment 的 `shot_ids` 顺序和 Shot 时长推导；
@@ -626,10 +706,12 @@ v3 中：
 
 需要下游自动化时输出 `storyboard.json`。
 
-v3 规则：
+v4 规则：
 
 - `scene.shots` 是 Shot 唯一事实源；
 - Segment 只存 `shot_ids`；
+- v4 连续 Shot 使用结构化 `start_state/end_state` + `handoff.state_inheritance`；
+- 连续物理动作按需使用 `action_state`；
 - Dialogue 行显式存 `language`、`timing_seconds`、`timing_source`；
 - 非第一镜存 `handoff_from_previous`；
 - Scene 存 `director_plan`；
@@ -692,9 +774,12 @@ v3 规则：
 ### D. 跨镜连续
 
 - `end_state → handoff → start_state` 成立；
+- v4 连续切镜的 `state_inheritance` 非空且逐路径验证通过；
+- 同一 `action_id` 的 phase 不倒退，match-on-action 继续同一动作；
 - 屏幕方向、视线、动作相位、道具、服装、环境连续；
 - 30°/180°规则没有无意制造跳切或空间混乱；
-- insert/cutaway 能安全返回主动作。
+- insert/cutaway 能安全返回主动作；
+- 已执行 Draft → Continuity Audit → Repair，不把第一稿直接送生产。
 
 ### E. Timing
 
@@ -719,7 +804,9 @@ v3 规则：
 - Asset State Matrix 足够覆盖本次 Shots；
 - Geography / Blocking 可读；
 - Storyboard Continuity Audit 通过；
+- Continuity Repair 已处理 blocker / major 问题；
 - Animatic/Previs 没有 blocking issue；
+- `previs_gate.status=pass`；
 - Shot Production Packet 可由 canonical data 派生。
 
 ### H. Hook（若适用）
@@ -730,7 +817,7 @@ v3 规则：
 
 ## 22. Animatic / Previs Gate
 
-cinematic_previs 工作流中，Storyboard 完成后不要直接进入正式视频生成。
+cinematic_previs 工作流中，Draft Storyboard 完成后不要直接进入正式视频生成。先执行 `references/continuity-audit.md`；只有修复并成为 Approved Storyboard 后再进入 Animatic / Previs。
 
 先按 Shot duration 生成 Animatic / Previs timeline 计划，至少包含：
 
